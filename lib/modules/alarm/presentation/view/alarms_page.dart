@@ -88,7 +88,7 @@ class _AlarmsPageState extends State<AlarmsPage>
                     IconButton(
                       icon: const Icon(Icons.search),
                       onPressed: () {
-                        getIt<ThingsboardAppRouter>()
+                        getIt<Get220vAppRouter>()
                         // translate-me-ignore-next-line
                         .navigateTo('/alarms?search=true');
                       },

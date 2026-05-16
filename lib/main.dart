@@ -54,5 +54,5 @@ Future<void> main() async {
     Bloc.observer = AppBlocObserver(getIt());
   }
   FlutterNativeSplash.remove();
-  runApp(const ProviderScope(child: ThingsboardApp()));
+  runApp(const ProviderScope(child: Get220vApp()));
 }

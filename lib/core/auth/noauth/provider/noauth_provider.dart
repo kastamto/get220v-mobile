@@ -141,12 +141,12 @@ class NoauthProvider extends _$NoauthProvider {
   Future<void> reset(SwitchEndpointParams params) async {
     try {
       await getIt<IEndpointService>().setEndpoint(
-        ThingsboardAppConstants.thingsBoardApiEndpoint,
+        Get220vAppConstants.thingsBoardApiEndpoint,
       );
       await getIt<IFirebaseService>().clearApps();
       await _initDefaultFbApp();
       _reInitClient(
-        endpoint: ThingsboardAppConstants.thingsBoardApiEndpoint,
+        endpoint: Get220vAppConstants.thingsBoardApiEndpoint,
         params: params,
       );
     } catch (e) {

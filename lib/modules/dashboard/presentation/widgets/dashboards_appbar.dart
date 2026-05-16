@@ -31,12 +31,12 @@ class DashboardsAppbar extends StatelessWidget {
           child: SizedBox(
             height: 24,
             child: SvgPicture.asset(
-              ThingsboardImage.thingsBoardWithTitle,
+              Get220vImage.thingsBoardWithTitle,
               colorFilter: ColorFilter.mode(
                 Theme.of(context).primaryColor,
                 BlendMode.srcIn,
               ),
-              semanticsLabel: 'ThingsBoard Logo',
+              semanticsLabel: 'Get220v Logo',
             ),
           ),
         ),
@@ -45,7 +45,7 @@ class DashboardsAppbar extends StatelessWidget {
             IconButton(
               icon: const Icon(Icons.search),
               onPressed: () {
-                getIt<ThingsboardAppRouter>()
+                getIt<Get220vAppRouter>()
                 // translate-me-ignore-next-line
                 .navigateTo('/tenants?search=true');
               },

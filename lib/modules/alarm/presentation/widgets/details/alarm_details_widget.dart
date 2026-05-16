@@ -121,7 +121,7 @@ class _AlarmDetailsWidgetState extends State<AlarmDetailsWidget>
                       width: double.infinity,
                       child: TextButton(
                         onPressed: () {
-                          getIt<ThingsboardAppRouter>().navigateToDashboard(
+                          getIt<Get220vAppRouter>().navigateToDashboard(
                             widget.alamDashboardId!,
                             dashboardTitle: widget.alarmInfo.originatorName,
                             state: Utils.createDashboardEntityState(

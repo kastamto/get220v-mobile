@@ -12,9 +12,9 @@ class _LocalAppSecretProvider implements AppSecretProvider {
   @override
   Future<String> getAppSecret(PlatformType platformType) async {
     if (platformType == PlatformType.IOS) {
-      return ThingsboardAppConstants.thingsboardIOSAppSecret;
+      return Get220vAppConstants.thingsboardIOSAppSecret;
     } else if (platformType == PlatformType.ANDROID) {
-      return ThingsboardAppConstants.thingsboardAndroidAppSecret;
+      return Get220vAppConstants.thingsboardAndroidAppSecret;
     }
 
     throw UnsupportedError('This platform is not supported $platformType');

@@ -31,7 +31,7 @@ class _DashboardGridCardState extends State<DashboardGridCard> {
       image = Utils.imageFromTbImage(context, getIt<ITbClientService>().client, widget.dashboard.image);
     } else {
       image = SvgPicture.asset(
-        ThingsboardImage.dashboardPlaceholder,
+        Get220vImage.dashboardPlaceholder,
         colorFilter: ColorFilter.mode(
           Theme.of(context).primaryColor,
           BlendMode.overlay,

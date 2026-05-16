@@ -258,7 +258,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "anyType": MessageLookupByLibrary.simpleMessage("Qualsiasi tipo"),
     "apiKey": MessageLookupByLibrary.simpleMessage("Chiave API"),
     "apiUsageState": MessageLookupByLibrary.simpleMessage("Stato utilizzo API"),
-    "appTitle": MessageLookupByLibrary.simpleMessage("ThingsBoard"),
+    "appTitle": MessageLookupByLibrary.simpleMessage("Get220v"),
     "applyChanges": MessageLookupByLibrary.simpleMessage("Applica modifiche"),
     "areYouSure": MessageLookupByLibrary.simpleMessage("Sei sicuro?"),
     "areYouSureYouWantToDeactivate": m3,
@@ -499,7 +499,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "loginWith": MessageLookupByLibrary.simpleMessage("Accedi con"),
     "logoDefaultValue": MessageLookupByLibrary.simpleMessage(
-      "Logo ThingsBoard",
+      "Logo Get220v",
     ),
     "logout": MessageLookupByLibrary.simpleMessage("Disconnetti"),
     "major": MessageLookupByLibrary.simpleMessage("Grave"),

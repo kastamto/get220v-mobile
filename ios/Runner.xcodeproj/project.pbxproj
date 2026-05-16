@@ -11,6 +11,7 @@
 		355251772E40C61D00FE9EC6 /* AppConfig.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = 355251762E40C61D00FE9EC6 /* AppConfig.xcconfig */; };
 		355251792E40C63100FE9EC6 /* TbDefault.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = 355251782E40C63100FE9EC6 /* TbDefault.xcconfig */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
+		52B68229ACEA60663CB4523C /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 8D7EA55166F52F925B64A358 /* GoogleService-Info.plist */; };
 		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
 		7814FBD9267B343300D19461 /* TbWebAuthHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7814FBD8267B343200D19461 /* TbWebAuthHandler.swift */; };
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
@@ -47,6 +48,7 @@
 		78018925264ABC4000ABF911 /* Info-Debug.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "Info-Debug.plist"; sourceTree = "<group>"; };
 		7814FBD8267B343200D19461 /* TbWebAuthHandler.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TbWebAuthHandler.swift; sourceTree = "<group>"; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Release.xcconfig; path = Flutter/Release.xcconfig; sourceTree = "<group>"; };
+		8D7EA55166F52F925B64A358 /* GoogleService-Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "Runner/GoogleService-Info.plist"; sourceTree = "<group>"; };
 		9740EEB21CF90195004384FC /* Debug.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = Debug.xcconfig; path = Flutter/Debug.xcconfig; sourceTree = "<group>"; };
 		9740EEB31CF90195004384FC /* Generated.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = Generated.xcconfig; path = Flutter/Generated.xcconfig; sourceTree = "<group>"; };
 		97C146EE1CF9000F007C117D /* Runner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Runner.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -103,6 +105,7 @@
 				97C146EF1CF9000F007C117D /* Products */,
 				6DC9651F6A522896561E37DC /* Pods */,
 				BB4711A7131D70453FCD2E69 /* Frameworks */,
+				8D7EA55166F52F925B64A358 /* GoogleService-Info.plist */,
 			);
 			sourceTree = "<group>";
 		};
@@ -211,6 +214,7 @@
 				3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */,
 				97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */,
 				97C146FC1CF9000F007C117D /* Main.storyboard in Resources */,
+				52B68229ACEA60663CB4523C /* GoogleService-Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

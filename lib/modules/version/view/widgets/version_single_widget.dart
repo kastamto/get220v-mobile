@@ -41,7 +41,7 @@ class _VersionSingleState extends State<VersionSingleWidget>
             onPressed: () {
               context.push( UiUtilsRoutes.qrCodeScan);
             },
-            icon: SvgPicture.asset(ThingsboardImage.oauth2Logos['qr-code']!, width: 24, height: 24,),
+            icon: SvgPicture.asset(Get220vImage.oauth2Logos['qr-code']!, width: 24, height: 24,),
           ),
         ],
       ),

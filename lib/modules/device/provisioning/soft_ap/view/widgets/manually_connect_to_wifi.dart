@@ -26,7 +26,7 @@ class ManuallyConnectToWifi extends StatelessWidget {
     return Column(
       children: [
         SvgPicture.asset(
-          ThingsboardImage.connectMobile,
+          Get220vImage.connectMobile,
           width: 140,
           height: 140,
         ),

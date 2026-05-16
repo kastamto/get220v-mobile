@@ -14,7 +14,7 @@ class DeviceProvisioningDone extends StatelessWidget {
       children: [
         Center(
           child: SvgPicture.asset(
-            ThingsboardImage.deviceProvisioningDone,
+            Get220vImage.deviceProvisioningDone,
             width: 140,
             height: 140,
           ),

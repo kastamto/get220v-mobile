@@ -254,7 +254,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "anyType": MessageLookupByLibrary.simpleMessage("Enhver type"),
     "apiKey": MessageLookupByLibrary.simpleMessage("API-nøkkel"),
     "apiUsageState": MessageLookupByLibrary.simpleMessage("API-bruksstatus"),
-    "appTitle": MessageLookupByLibrary.simpleMessage("ThingsBoard"),
+    "appTitle": MessageLookupByLibrary.simpleMessage("Get220v"),
     "applyChanges": MessageLookupByLibrary.simpleMessage("Bruk endringer"),
     "areYouSure": MessageLookupByLibrary.simpleMessage("Er du sikker?"),
     "areYouSureYouWantToDeactivate": m3,
@@ -487,7 +487,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "loginWith": MessageLookupByLibrary.simpleMessage("Logg inn med"),
     "logoDefaultValue": MessageLookupByLibrary.simpleMessage(
-      "ThingsBoard-logo",
+      "Get220v-logo",
     ),
     "logout": MessageLookupByLibrary.simpleMessage("Logg ut"),
     "major": MessageLookupByLibrary.simpleMessage("Alvorlig"),

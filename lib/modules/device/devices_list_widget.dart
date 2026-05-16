@@ -11,7 +11,7 @@ class DevicesListWidget extends EntitiesListWidget<EntityData, EntityDataQuery>
 
   @override
   void onViewAll() {
-    getIt<ThingsboardAppRouter>().navigateTo('/devices');
+    getIt<Get220vAppRouter>().navigateTo('/devices');
   }
 
   @override

@@ -67,7 +67,7 @@ class _FullscreenDashboardPageState extends State<FullscreenDashboardPage> {
                   icon: const Icon(Icons.settings),
                   // translate-me-ignore-next-line
                   onPressed:
-                      () => getIt<ThingsboardAppRouter>().navigateTo(
+                      () => getIt<Get220vAppRouter>().navigateTo(
                         '/profile?fullscreen=true',
                       ),
                 ),

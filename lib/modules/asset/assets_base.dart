@@ -33,7 +33,7 @@ mixin AssetsBase on EntitiesBase<AssetInfo, PageLink> {
   @override
   void onEntityTap(AssetInfo asset, WidgetRef ref) {
     if (asset.id?.id != null) {
-      getIt<ThingsboardAppRouter>().navigateTo('/assets/asset/${asset.id!.id}');
+      getIt<Get220vAppRouter>().navigateTo('/assets/asset/${asset.id!.id}');
     }
   }
 

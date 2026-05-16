@@ -37,7 +37,7 @@ class _TenantsPageState extends State<TenantsPage> {
             icon: const Icon(Icons.search),
             onPressed: () {
               // translate-me-ignore-next-line
-              getIt<ThingsboardAppRouter>().navigateTo('/tenants?search=true');
+              getIt<Get220vAppRouter>().navigateTo('/tenants?search=true');
             },
           ),
         ],

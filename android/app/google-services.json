@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "379623627591",
+    "project_id": "get220v",
+    "storage_bucket": "get220v.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:379623627591:android:e9bbb13b79a0bb7425ca62",
+        "android_client_info": {
+          "package_name": "com.get220v.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCmMZZ_FWY5hvs8Mnw6LWma_diDcLEAwTw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

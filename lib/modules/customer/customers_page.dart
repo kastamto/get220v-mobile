@@ -37,7 +37,7 @@ class _CustomersPageState extends State<CustomersPage> {
             icon: const Icon(Icons.search),
             onPressed: () {
               // translate-me-ignore-next-line
-              getIt<ThingsboardAppRouter>().navigateTo(
+              getIt<Get220vAppRouter>().navigateTo(
                 '/customers?search=true',
               );
             },

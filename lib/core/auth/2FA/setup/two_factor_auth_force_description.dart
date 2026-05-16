@@ -23,7 +23,7 @@ class TwoFactorAuthForceDescription extends StatelessWidget {
                   spacing: 24,
                   children: [
                     SvgPicture.asset(
-                      ThingsboardImage.twoFaSetup,
+                      Get220vImage.twoFaSetup,
                       colorFilter: ColorFilter.mode(
                         Theme.of(context).primaryColor,
                         BlendMode.srcIn,

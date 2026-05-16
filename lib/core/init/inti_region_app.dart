@@ -9,14 +9,14 @@ import 'package:thingsboard_app/utils/services/endpoint/i_endpoint_service.dart'
 import 'package:thingsboard_app/utils/services/local_database/i_local_database_service.dart';
 import 'package:thingsboard_app/widgets/tb_progress_indicator.dart';
 
-class ThingsboardInitRegionApp extends TbPageWidget {
-  ThingsboardInitRegionApp(super.tbContext, {super.key});
+class Get220vInitRegionApp extends TbPageWidget {
+  Get220vInitRegionApp(super.tbContext, {super.key});
 
   @override
-  State<StatefulWidget> createState() => _ThingsboardInitAppState();
+  State<StatefulWidget> createState() => _Get220vInitAppState();
 }
 
-class _ThingsboardInitAppState extends TbPageState<ThingsboardInitRegionApp> {
+class _Get220vInitAppState extends TbPageState<Get220vInitRegionApp> {
   @override
   Widget build(BuildContext context) {
     return FutureBuilder(
@@ -33,13 +33,13 @@ class _ThingsboardInitAppState extends TbPageState<ThingsboardInitRegionApp> {
         }
 
          if ((snapshot.hasError || snapshot.data == null) &&
-            !ThingsboardAppConstants.ignoreRegionSelection) {
+            !Get220vAppConstants.ignoreRegionSelection) {
                 FlutterNativeSplash.remove();
           return SelectRegionScreen(tbContext);
         }
-        if (ThingsboardAppConstants.ignoreRegionSelection) {
+        if (Get220vAppConstants.ignoreRegionSelection) {
           getIt<IEndpointService>().setEndpoint(
-            ThingsboardAppConstants.thingsBoardApiEndpoint,
+            Get220vAppConstants.thingsBoardApiEndpoint,
           );
            getIt<IEndpointService>().setRegion(Region.custom);
         }

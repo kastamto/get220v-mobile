@@ -37,7 +37,7 @@ class _AssetsPageState extends State<AssetsPage> {
             icon: const Icon(Icons.search),
             onPressed: () {
               // translate-me-ignore-next-line
-              getIt<ThingsboardAppRouter>().navigateTo('/assets?search=true');
+              getIt<Get220vAppRouter>().navigateTo('/assets?search=true');
             },
           ),
         ],

@@ -104,7 +104,7 @@ class _DevicesListPageState extends State<DevicesListPage>
                 // translate-me-ignore-next-line
                 params.add('active=${widget.active}');
               }
-              getIt<ThingsboardAppRouter>()
+              getIt<Get220vAppRouter>()
               // translate-me-ignore-next-line
               .navigateTo('/devices/deviceList?${params.join('&')}');
             },

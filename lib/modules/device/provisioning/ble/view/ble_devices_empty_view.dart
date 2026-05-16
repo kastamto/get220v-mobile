@@ -23,7 +23,7 @@ class BleDevicesEmptyView extends StatelessWidget {
     return Column(
       children: [
         SvgPicture.asset(
-          ThingsboardImage.deviceNotFound,
+          Get220vImage.deviceNotFound,
           width: 140,
           height: 140,
         ),

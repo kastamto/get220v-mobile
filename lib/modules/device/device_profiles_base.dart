@@ -40,7 +40,7 @@ mixin DeviceProfilesBase on EntitiesBase<DeviceProfileInfo, PageLink> {
 
   @override
   void onEntityTap(DeviceProfileInfo deviceProfile, WidgetRef ref) {
-    getIt<ThingsboardAppRouter>().navigateTo(
+    getIt<Get220vAppRouter>().navigateTo(
       '/devices/deviceList?deviceType=${Uri.encodeComponent(deviceProfile.name)}',
     );
   }
@@ -216,7 +216,7 @@ class _AllDevicesCardState extends State<AllDevicesCard> {
                           ),
                         ),
                         onTap: () {
-                          getIt<ThingsboardAppRouter>()
+                          getIt<Get220vAppRouter>()
                           // translate-me-ignore-next-line
                           .navigateTo('/devices/deviceList?active=true');
                         },
@@ -266,7 +266,7 @@ class _AllDevicesCardState extends State<AllDevicesCard> {
                           ),
                         ),
                         onTap: () {
-                          getIt<ThingsboardAppRouter>()
+                          getIt<Get220vAppRouter>()
                           // translate-me-ignore-next-line
                           .navigateTo('/devices/deviceList?active=false');
                         },
@@ -280,7 +280,7 @@ class _AllDevicesCardState extends State<AllDevicesCard> {
         ),
       ),
       onTap: () {
-        getIt<ThingsboardAppRouter>().navigateTo('/devices/deviceList');
+        getIt<Get220vAppRouter>().navigateTo('/devices/deviceList');
       },
     );
   }
@@ -334,7 +334,7 @@ class _DeviceProfileCardState extends State<DeviceProfileCard> {
       image = SvgPicture.asset(
         width: 64,
         height: 64,
-        ThingsboardImage.deviceProfilePlaceholder,
+        Get220vImage.deviceProfilePlaceholder,
         semanticsLabel: 'Device profile',
       );
     }
@@ -398,7 +398,7 @@ class _DeviceProfileCardState extends State<DeviceProfileCard> {
               },
             ),
             onTap: () {
-              getIt<ThingsboardAppRouter>().navigateTo(
+              getIt<Get220vAppRouter>().navigateTo(
                 // translate-me-ignore-next-line
                 '/devices/deviceList?active=true&deviceType=${Uri.encodeComponent(entity.name)}',
               );
@@ -438,7 +438,7 @@ class _DeviceProfileCardState extends State<DeviceProfileCard> {
               },
             ),
             onTap: () {
-              getIt<ThingsboardAppRouter>().navigateTo(
+              getIt<Get220vAppRouter>().navigateTo(
                 // translate-me-ignore-next-line
                 '/devices/deviceList?active=false&deviceType=${Uri.encodeComponent(entity.name)}',
               );

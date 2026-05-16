@@ -18,7 +18,7 @@ class SelectRegionScreen extends TbContextStatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            SvgPicture.asset(ThingsboardImage.thingsboardBigLogo),
+            SvgPicture.asset(Get220vImage.thingsboardBigLogo),
             const SizedBox(height: 166),
             Expanded(
               child: Padding(
@@ -39,7 +39,7 @@ class SelectRegionScreen extends TbContextStatelessWidget {
                           getIt<IEndpointService>().setRegion(
                             Region.northAmerica,
                           );
-                          getIt<ThingsboardAppRouter>().navigateTo('/');
+                          getIt<Get220vAppRouter>().navigateTo('/');
                         },
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(
@@ -57,7 +57,7 @@ class SelectRegionScreen extends TbContextStatelessWidget {
                       child: ElevatedButton(
                         onPressed: () {
                           getIt<IEndpointService>().setRegion(Region.europe);
-                          getIt<ThingsboardAppRouter>().navigateTo('/');
+                          getIt<Get220vAppRouter>().navigateTo('/');
                         },
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(

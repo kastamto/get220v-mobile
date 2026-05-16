@@ -61,7 +61,7 @@ class TbContext implements PopEntry {
   bool get isAuthenticated => _isAuthenticated.value;
 
   TbContextState? currentState;
-  late final ThingsboardAppRouter thingsboardAppRouter = getIt();
+  late final Get220vAppRouter thingsboardAppRouter = getIt();
   TbLogger get log => _log;
   final bottomNavigationTabChangedStream = StreamController<int>.broadcast();
 

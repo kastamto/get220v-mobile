@@ -55,20 +55,20 @@ class DeviceProvisioningView extends StatelessWidget {
                 if (state is DeviceProvisioningErrorState ||
                     state is DeviceProvisioningClaimingErrorState) {
                   return SvgPicture.asset(
-                    ThingsboardImage.deviceProvisioningError,
+                    Get220vImage.deviceProvisioningError,
                     width: 140,
                     height: 140,
                   );
                 } else if (state is DeviceProvisioningReconnectToWifiState) {
                   return SvgPicture.asset(
-                    ThingsboardImage.connectMobile,
+                    Get220vImage.connectMobile,
                     width: 140,
                     height: 140,
                   );
                 }
 
                 return SvgPicture.asset(
-                  ThingsboardImage.deviceProvisioning,
+                  Get220vImage.deviceProvisioning,
                   width: 140,
                   height: 140,
                 );

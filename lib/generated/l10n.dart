@@ -54,9 +54,9 @@ class S {
     return Localizations.of<S>(context, S);
   }
 
-  /// `ThingsBoard`
+  /// `Get220v`
   String get appTitle {
-    return Intl.message('ThingsBoard', name: 'appTitle', desc: '', args: []);
+    return Intl.message('Get220v', name: 'appTitle', desc: '', args: []);
   }
 
   /// `Home`
@@ -161,10 +161,10 @@ class S {
     return Intl.message('Log In', name: 'login', desc: '', args: []);
   }
 
-  /// `ThingsBoard Logo`
+  /// `Get220v Logo`
   String get logoDefaultValue {
     return Intl.message(
-      'ThingsBoard Logo',
+      'Get220v Logo',
       name: 'logoDefaultValue',
       desc: '',
       args: [],

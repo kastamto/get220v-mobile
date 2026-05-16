@@ -222,7 +222,7 @@ class _DeviceCardState extends State<DeviceCard> {
                 imageFit = BoxFit.contain;
               } else {
                 image = SvgPicture.asset(
-                  ThingsboardImage.deviceProfilePlaceholder,
+                  Get220vImage.deviceProfilePlaceholder,
 
                   semanticsLabel: 'Device',
                 );
@@ -419,7 +419,7 @@ class _DeviceCardState extends State<DeviceCard> {
                     imageFit = BoxFit.contain;
                   } else {
                     image = SvgPicture.asset(
-                      ThingsboardImage.deviceProfilePlaceholder,
+                      Get220vImage.deviceProfilePlaceholder,
                       colorFilter: ColorFilter.mode(
                         Theme.of(context).primaryColor,
                         BlendMode.overlay,

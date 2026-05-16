@@ -205,13 +205,13 @@ Future<void> onLoginPressed(
 
 Future<void> onLoginWithBarcode(BuildContext context) async {
   try {
-    final Barcode? barcode = await getIt<ThingsboardAppRouter>().navigateTo(
+    final Barcode? barcode = await getIt<Get220vAppRouter>().navigateTo(
       '/qrCodeScan',
       transition: TransitionType.nativeModal,
     );
 
     if (barcode != null && barcode.rawValue != null) {
-      getIt<ThingsboardAppRouter>().navigateByAppLink(barcode.rawValue);
+      getIt<Get220vAppRouter>().navigateByAppLink(barcode.rawValue);
     }
   } catch (e) {
     getIt<TbLogger>().error('Login with qr code error', e);

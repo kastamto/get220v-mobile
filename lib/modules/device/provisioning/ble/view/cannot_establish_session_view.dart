@@ -19,7 +19,7 @@ class CannotEstablishSessionView extends StatelessWidget {
     return Column(
       children: [
         SvgPicture.asset(
-          ThingsboardImage.provisioningError,
+          Get220vImage.provisioningError,
           width: 140,
           height: 140,
         ),

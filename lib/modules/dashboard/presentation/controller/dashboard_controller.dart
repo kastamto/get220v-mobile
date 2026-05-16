@@ -106,14 +106,14 @@ class DashboardController {
         if ((firstPart == 'dashboard' || firstPart == 'dashboards') &&
             parts.length > 1) {
           final dashboardId = parts[1];
-          await getIt<ThingsboardAppRouter>().navigateToDashboard(dashboardId);
+          await getIt<Get220vAppRouter>().navigateToDashboard(dashboardId);
         } else if (firstPart != 'dashboard') {
           var targetPath = '/$firstPart';
           if (firstPart == 'devices' && home == true) {
             targetPath = '/devicesPage';
           }
 
-          await getIt<ThingsboardAppRouter>().navigateTo(targetPath);
+          await getIt<Get220vAppRouter>().navigateTo(targetPath);
         }
       } else {
         throw UnimplementedError('The path $path is currently not supported.');

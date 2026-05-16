@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 class AppColors {
   AppColors._();
   
-  // Primary Brand Colors (CE Blue Theme)
-  static const primaryBlue = Color(0xFF305680);
-  static const secondaryBlue = Color(0xFF527dad);
-  static const darkPrimaryBlue = Color(0xFF9fa8da);
+  // Primary Brand Colors (Get220v Theme)
+  static const primaryBlue = Color(0xFF6F42C1);
+  static const secondaryBlue = Color(0xFF007BFF);
+  static const darkPrimaryBlue = Color(0xFF9F7FD4);
   
   // Surface Colors
   static const white = Color(0xFFFFFFFF);
@@ -43,37 +43,36 @@ class AppColors {
   static const cameraBackground = Color(0xFF828282);
   
   // Selection and Focus Colors
-  static const selectionColor = Color(0x33305680); // primaryBlue with 20% opacity
+  static const selectionColor = Color(0x336F42C1);
   static const focusColor = primaryBlue;
   
-  // Material Color Swatch for Primary Blue
-  static const MaterialColor primarySwatch = MaterialColor(0xFF305680, <int, Color>{
-    50: Color(0xFFE8EAF6),
-    100: Color(0xFFC5CAE9),
-    200: Color(0xFF9FA8DA),
-    300: Color(0xFF7986CB),
-    400: Color(0xFF5C6BC0),
+  // Material Color Swatch for Get220v Purple
+  static const MaterialColor primarySwatch = MaterialColor(0xFF6F42C1, <int, Color>{
+    50: Color(0xFFEDE7F6),
+    100: Color(0xFFD1C4E9),
+    200: Color(0xFFB39DDB),
+    300: Color(0xFF9575CD),
+    400: Color(0xFF7E57C2),
     500: primaryBlue,
-    600: secondaryBlue,
-    700: Color(0xFF303F9F),
-    800: Color(0xFF283593),
-    900: Color(0xFF1A237E),
+    600: Color(0xFF5E35B1),
+    700: Color(0xFF512DA8),
+    800: Color(0xFF4527A0),
+    900: Color(0xFF311B92),
   });
   
-  // Dark Theme Material Color Swatch
-  static const MaterialColor darkPrimarySwatch = MaterialColor(0xFF305680, <int, Color>{
-    50: Color(0xFFE8EAF6),
-    100: Color(0xFFC5CAE9),
-    200: Color(0xFF9FA8DA),
-    300: Color(0xFF7986CB),
-    400: Color(0xFF5C6BC0),
+  // Dark Theme
+  static const MaterialColor darkPrimarySwatch = MaterialColor(0xFF6F42C1, <int, Color>{
+    50: Color(0xFFEDE7F6),
+    100: Color(0xFFD1C4E9),
+    200: Color(0xFF9F7FD4),
+    300: Color(0xFF9575CD),
+    400: Color(0xFF7E57C2),
     500: darkPrimaryBlue,
     600: secondaryBlue,
-    700: Color(0xFF303F9F),
+    700: Color(0xFF512DA8),
     800: primaryBlue,
-    900: Color(0xFF1A237E),
+    900: Color(0xFF311B92),
   });
   
-  // Getters for dynamic color access
   static Color get appPrimaryColor => primaryBlue;
 }

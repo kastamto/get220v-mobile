@@ -1,4 +1,4 @@
-abstract class ThingsboardImage {
+abstract class Get220vImage {
   static const thingsBoardWithTitle =
       'assets/images/thingsboard_with_title.svg';
   static const thingsboard = 'assets/images/thingsboard.svg';

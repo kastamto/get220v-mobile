@@ -139,7 +139,7 @@ class _AlarmCardState extends State<AlarmCard> {
                           ),
                           padding: const EdgeInsets.all(7.0),
                           onPressed:
-                              () => getIt<ThingsboardAppRouter>().navigateTo(
+                              () => getIt<Get220vAppRouter>().navigateTo(
                                 // translate-me-ignore-next-line
                                 '/alarms/alarmDetails/${widget.alarm.id?.id}',
                               ),

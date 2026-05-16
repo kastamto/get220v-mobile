@@ -275,7 +275,7 @@ class NotificationService {
           );
 
           if (dashboardId != null) {
-            getIt<ThingsboardAppRouter>().navigateToDashboard(
+            getIt<Get220vAppRouter>().navigateToDashboard(
               dashboardId,
               state: state,
             );
@@ -286,20 +286,20 @@ class NotificationService {
           if (rawLink != null) {
             final link = (data['link'] ?? data['onClick.link']).toString();
             if (Uri.parse(link).isAbsolute) {
-              getIt<ThingsboardAppRouter>().navigateTo(
+              getIt<Get220vAppRouter>().navigateTo(
                 '/url/${Uri.encodeComponent(link)}',
               );
             } else if (link == '/notifications' &&
                 !isOnNotificationsScreenAlready) {
-              getIt<ThingsboardAppRouter>().navigateTo(link);
+              getIt<Get220vAppRouter>().navigateTo(link);
             } else {
-              getIt<ThingsboardAppRouter>().navigateTo(link);
+              getIt<Get220vAppRouter>().navigateTo(link);
             }
           }
       }
     } else {
       if (!isOnNotificationsScreenAlready) {
-        getIt<ThingsboardAppRouter>().navigateTo('/notifications');
+        getIt<Get220vAppRouter>().navigateTo('/notifications');
       }
     }
   }

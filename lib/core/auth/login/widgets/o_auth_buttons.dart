@@ -22,7 +22,7 @@ class OAuthButtons extends StatelessWidget {
             children: [
               OAuthButton(
                 logo: SvgPicture.asset(
-                  ThingsboardImage.oauth2Logos['qr-code-logo']!,
+                  Get220vImage.oauth2Logos['qr-code-logo']!,
                 ),
                 onTap: () => onButtonPressed(clients.first),
                 title: S.of(context).scanQrCode,
@@ -46,7 +46,7 @@ class OAuthButtons extends StatelessWidget {
 }
 
 Widget _getOauth2ButtonLogo(BuildContext context, OAuth2ClientInfo info) {
-  final String? svgPath = ThingsboardImage.oauth2Logos[info.icon];
+  final String? svgPath = Get220vImage.oauth2Logos[info.icon];
 
   if (svgPath != null) {
     return SizedBox(width: 24, height: 24, child: SvgPicture.asset(svgPath));

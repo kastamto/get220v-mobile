@@ -33,7 +33,7 @@ class TbOAuth2Client implements IOAuth2Client {
     final pkgName = _deviceInfoService.getApplicationId();
     final jwt = JWT({
       'callbackUrlScheme':
-          ThingsboardAppConstants.thingsboardOAuth2CallbackUrlScheme,
+          Get220vAppConstants.thingsboardOAuth2CallbackUrlScheme,
     }, issuer: pkgName);
     final key = SecretKey(appSecret);
     final appToken = jwt.sign(
@@ -53,7 +53,7 @@ class TbOAuth2Client implements IOAuth2Client {
     final result = await TbWebAuth.authenticate(
       url: url.toString(),
       callbackUrlScheme:
-          ThingsboardAppConstants.thingsboardOAuth2CallbackUrlScheme,
+          Get220vAppConstants.thingsboardOAuth2CallbackUrlScheme,
       saveHistory: true,
     );
     final resultUri = Uri.parse(result);

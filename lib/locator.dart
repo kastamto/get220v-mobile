@@ -52,7 +52,7 @@ Future<void> setUpRootDependencies() async {
     )
     ..registerLazySingleton<IOverlayService>(() => OverlayService())
     ..registerLazySingleton<ITbImageGalleryService>(() => TbImageGalleryService())
-      ..registerLazySingleton<ThingsboardAppRouter>(() => ThingsboardAppRouter(overlayService: getIt()))
+      ..registerLazySingleton<Get220vAppRouter>(() => Get220vAppRouter(overlayService: getIt()))
     ..registerLazySingleton<IDeviceInfoService>(() => deviceInfoService)
     // ..registerLazySingleton(() => TbContext())
     ..registerSingletonAsync<ITbClientService>(() async {
@@ -62,7 +62,7 @@ Future<void> setUpRootDependencies() async {
     })
     ..registerLazySingleton(() => NotificationService())
     // ..registerSingleton(
-    //   ThingsboardAppRouter(overlayService: getIt(), tbContext: getIt()),
+    //   Get220vAppRouter(overlayService: getIt(), tbContext: getIt()),
     // )
     ..registerLazySingleton<IFirebaseService>(
       () => FirebaseService(logger: getIt(), endpointService: getIt()),

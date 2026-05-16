@@ -267,7 +267,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "apiUsageState": MessageLookupByLibrary.simpleMessage(
       "Κατάσταση χρήσης API",
     ),
-    "appTitle": MessageLookupByLibrary.simpleMessage("ThingsBoard"),
+    "appTitle": MessageLookupByLibrary.simpleMessage("Get220v"),
     "applyChanges": MessageLookupByLibrary.simpleMessage("Εφαρμογή αλλαγών"),
     "areYouSure": MessageLookupByLibrary.simpleMessage("Είστε σίγουροι;"),
     "areYouSureYouWantToDeactivate": m3,
@@ -526,7 +526,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "loginWith": MessageLookupByLibrary.simpleMessage("Σύνδεση με"),
     "logoDefaultValue": MessageLookupByLibrary.simpleMessage(
-      "Λογότυπο ThingsBoard",
+      "Λογότυπο Get220v",
     ),
     "logout": MessageLookupByLibrary.simpleMessage("Αποσύνδεση"),
     "major": MessageLookupByLibrary.simpleMessage("Σοβαρό"),

@@ -51,14 +51,14 @@ class DeviceProvisioningAction extends MobileAction {
 
           switch (transport.toLowerCase()) {
             case 'ble':
-              provisioningResult = await getIt<ThingsboardAppRouter>()
+              provisioningResult = await getIt<Get220vAppRouter>()
                   .navigateTo(
                     EspProvisioningRoutes.espBleProvisioning,
                     routeSettings: RouteSettings(arguments: arguments),
                   );
 
             case 'softap':
-              provisioningResult = await getIt<ThingsboardAppRouter>()
+              provisioningResult = await getIt<Get220vAppRouter>()
                   .navigateTo(
                      EspProvisioningRoutes.espSoftApProvisioning,
                     routeSettings: RouteSettings(arguments: arguments),

@@ -10,6 +10,6 @@ class AssetsListWidget extends EntitiesListPageLinkWidget<AssetInfo>
 
   @override
   void onViewAll() {
-    getIt<ThingsboardAppRouter>().navigateTo('/assets');
+    getIt<Get220vAppRouter>().navigateTo('/assets');
   }
 }

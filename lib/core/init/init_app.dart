@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:thingsboard_app/core/context/tb_context_widget.dart';
 import 'package:thingsboard_app/widgets/tb_progress_indicator.dart';
 
-class ThingsboardInitApp extends TbPageWidget {
-  ThingsboardInitApp(super.tbContext, {super.key});
+class Get220vInitApp extends TbPageWidget {
+  Get220vInitApp(super.tbContext, {super.key});
 
   @override
-  State<StatefulWidget> createState() => _ThingsboardInitAppState();
+  State<StatefulWidget> createState() => _Get220vInitAppState();
 }
 
-class _ThingsboardInitAppState extends TbPageState<ThingsboardInitApp> {
+class _Get220vInitAppState extends TbPageState<Get220vInitApp> {
   @override
   void initState() {
     super.initState();

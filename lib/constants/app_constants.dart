@@ -1,6 +1,6 @@
 import 'package:thingsboard_app/modules/main/model/navigation_type.dart';
 
-abstract final class ThingsboardAppConstants {
+abstract final class Get220vAppConstants {
   static const thingsBoardApiEndpoint = String.fromEnvironment(
     'thingsboardApiEndpoint',
   );

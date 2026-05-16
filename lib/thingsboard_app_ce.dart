@@ -10,8 +10,8 @@ import 'package:thingsboard_app/config/themes/tb_ce_theme.dart';
 import 'package:thingsboard_app/generated/l10n.dart';
 import 'package:toastification/toastification.dart';
 
-class ThingsboardApp extends HookConsumerWidget {
-  const ThingsboardApp({super.key});
+class Get220vApp extends HookConsumerWidget {
+  const Get220vApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

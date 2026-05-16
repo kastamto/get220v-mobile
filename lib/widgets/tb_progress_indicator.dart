@@ -58,7 +58,7 @@ class _TbProgressIndicatorState extends State<TbProgressIndicator>
     return Stack(
       children: [
         SvgPicture.asset(
-          ThingsboardImage.thingsboardCenter,
+          Get220vImage.thingsboardCenter,
           height: widget.size,
           width: widget.size,
           colorFilter: ColorFilter.mode(
@@ -69,7 +69,7 @@ class _TbProgressIndicatorState extends State<TbProgressIndicator>
         AnimatedBuilder(
           animation: _rotation,
           child: SvgPicture.asset(
-            ThingsboardImage.thingsboardOuter,
+            Get220vImage.thingsboardOuter,
             height: widget.size,
             width: widget.size,
             colorFilter: ColorFilter.mode(

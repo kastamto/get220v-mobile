@@ -201,7 +201,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "anyType": MessageLookupByLibrary.simpleMessage("任何類型"),
     "apiKey": MessageLookupByLibrary.simpleMessage("API 金鑰"),
     "apiUsageState": MessageLookupByLibrary.simpleMessage("API使用狀態"),
-    "appTitle": MessageLookupByLibrary.simpleMessage("Thingsboard"),
+    "appTitle": MessageLookupByLibrary.simpleMessage("Get220v"),
     "applyChanges": MessageLookupByLibrary.simpleMessage("套用變更"),
     "areYouSure": MessageLookupByLibrary.simpleMessage("您確定嗎？"),
     "areYouSureYouWantToDeactivate": m3,
@@ -380,7 +380,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "loginToYourAccount": MessageLookupByLibrary.simpleMessage("登入您的帳號"),
     "loginWith": MessageLookupByLibrary.simpleMessage("登入方式"),
     "logoDefaultValue": MessageLookupByLibrary.simpleMessage(
-      "Thingsboard Logo",
+      "Get220v Logo",
     ),
     "logout": MessageLookupByLibrary.simpleMessage("登出"),
     "major": MessageLookupByLibrary.simpleMessage("重要"),

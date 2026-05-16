@@ -43,7 +43,7 @@ class ChooseRegionScreen extends TbContextStatelessWidget {
                 selected: nASelected,
                 onTap: () {
                   getIt<IEndpointService>().setRegion(Region.northAmerica);
-                  getIt<ThingsboardAppRouter>().navigateTo('/', replace: true);
+                  getIt<Get220vAppRouter>().navigateTo('/', replace: true);
                 },
               ),
               Padding(
@@ -54,7 +54,7 @@ class ChooseRegionScreen extends TbContextStatelessWidget {
                   selected: europeSelected,
                   onTap: () {
                     getIt<IEndpointService>().setRegion(Region.europe);
-                    getIt<ThingsboardAppRouter>().navigateTo(
+                    getIt<Get220vAppRouter>().navigateTo(
                       '/',
                       replace: true,
                     );

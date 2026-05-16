@@ -39,7 +39,7 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
             icon: const Icon(Icons.search),
             onPressed: () {
               // translate-me-ignore-next-line
-              getIt<ThingsboardAppRouter>().navigateTo(
+              getIt<Get220vAppRouter>().navigateTo(
                 '/auditLogs?search=true',
               );
             },

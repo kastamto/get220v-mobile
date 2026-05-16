@@ -20,7 +20,7 @@ class ErrorStateWidget extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           SvgPicture.asset(
-            ThingsboardImage.twoFaSetup,
+            Get220vImage.twoFaSetup,
             width: 140,
             height: 140,
             colorFilter: Utils.toColorFilter(AppColors.textError),

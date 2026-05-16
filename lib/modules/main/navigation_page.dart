@@ -86,7 +86,7 @@ class NavigationPage extends HookConsumerWidget {
                       if (index < items.length) {
                         final path = items[index].path;
                         currentIndex.value = index;
-                        if (ThingsboardAppConstants.navigationType ==
+                        if (Get220vAppConstants.navigationType ==
                             TbNavigationType.push) {
                           context.push(path);
                           return;

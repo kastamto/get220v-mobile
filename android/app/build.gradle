@@ -36,7 +36,7 @@ if (flutterVersionName == null) {
     flutterVersionName = '1.0'
 }
 def customScheme = getDartDefineValue('thingsboardOAuth2CallbackUrlScheme') ?: 'org.thingsboard.app.auth'
-def customLabel = getDartDefineValue('androidApplicationName') ?: 'Thingsboard app'
+def customLabel = getDartDefineValue('androidApplicationName') ?: 'Get220v'
 def appLinksUrlHost = getDartDefineValue('appLinksUrlHost') ?: 'demo.thingsboard.io'
 def webPathPrefix = getDartDefineValue('webPathPrefix') ?: '/api/noauth/qr'
 def appLinksUrlScheme = getDartDefineValue('appLinksUrlScheme') ?: 'https'

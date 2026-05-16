@@ -8,8 +8,8 @@ import 'package:thingsboard_app/modules/dashboard/domain/entites/dashboard_argum
 import 'package:thingsboard_app/utils/services/local_database/i_local_database_service.dart';
 import 'package:thingsboard_app/utils/services/overlay_service/i_overlay_service.dart';
 
-class ThingsboardAppRouter {
-  ThingsboardAppRouter({required this.overlayService});
+class Get220vAppRouter {
+  Get220vAppRouter({required this.overlayService});
 
   final IOverlayService overlayService;
   final TbLogger log = getIt<TbLogger>();

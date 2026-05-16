@@ -26,7 +26,7 @@ mixin CustomersBase on EntitiesBase<Customer, PageLink> {
 
   @override
   void onEntityTap(Customer customer, WidgetRef ref) {
-    getIt<ThingsboardAppRouter>().navigateTo(
+    getIt<Get220vAppRouter>().navigateTo(
       '/customers/customer/${customer.id!.id}',
     );
   }

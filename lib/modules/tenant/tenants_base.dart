@@ -25,6 +25,6 @@ mixin TenantsBase on EntitiesBase<Tenant, PageLink> {
 
   @override
   void onEntityTap(Tenant tenant, WidgetRef ref) {
-    getIt<ThingsboardAppRouter>().navigateTo('/tenants/tenant/${tenant.id!.id}');
+    getIt<Get220vAppRouter>().navigateTo('/tenants/tenant/${tenant.id!.id}');
   }
 }
