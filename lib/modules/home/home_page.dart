@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:thingsboard_app/modules/qr_scanner/qr_scanner_page.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:thingsboard_app/core/auth/login/models/login_state.dart';
 import 'package:thingsboard_app/core/auth/login/provider/login_provider.dart';
@@ -61,7 +62,17 @@ class _HomePageState extends ConsumerState<HomePage>
     if (getIt<ITbClientService>().client.isSystemAdmin()) {
       return _buildSysAdminHome(context);
     } else {
-      return const DashboardsPage();
+      return Scaffold(
+        body: const DashboardsPage(),
+        floatingActionButton: FloatingActionButton(
+          backgroundColor: const Color(0xFF6F42C1),
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const QrScannerPage()),
+          ),
+          child: const Icon(Icons.qr_code_scanner, color: Colors.white),
+        ),
+      );
     }
   }
 
