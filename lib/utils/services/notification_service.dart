@@ -81,7 +81,9 @@ class NotificationService {
 
   Future<String?> getToken() async {
     try {
-      return _fcmToken = await _messaging.getToken();
+      _fcmToken = await _messaging.getToken();
+      print("🔥 FCM Token: $_fcmToken");
+      return _fcmToken;
     } catch (_) {
       return null;
     }
