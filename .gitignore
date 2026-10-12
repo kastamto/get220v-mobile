@@ -48,3 +48,4 @@ app_constants.json
 # FVM Version Cache
 .fvm/
 WARP.md
+thingsboard/water-monitor/test/out/
