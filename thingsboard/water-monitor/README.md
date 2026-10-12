@@ -3,38 +3,36 @@
 Dashboard ThingsBoard untuk device air Get220v. Dashboard ini hanya memakai telemetry
 aktif device (`flow_*`, `tank_*`, `pump_*`, `alarm_level_*`, `rssi`, `evt`, `secs_today`, `uptime_s`).
 
-| Panel | Isi |
+| Tab | Isi |
 |---|---|
 | **Alert** | Alert aktif (kritis / peringatan / info), alarm server ThingsBoard (Ack/Clear), notifikasi browser, riwayat alert |
-| **Live telemetry** | Pemakaian hari ini vs baseline (+ proyeksi akhir hari), biaya hari ini & per kamar, L/kamar, flow, tangki, pompa, grafik 24 jam level & flow |
+| **Live** | Pemakaian hari ini vs baseline (+ proyeksi akhir hari), biaya hari ini & per kamar, L/kamar, flow, tangki, pompa, grafik 24 jam level & flow |
 | **Pemakaian harian** | Tabel 7/14/30 hari: kamar terisi (bisa diedit per hari), liter, L/kamar, biaya, biaya/kamar, % baseline, runtime pompa; grafik L/kamar vs baseline; ekspor CSV |
 | **Setup** | Jumlah kamar & kamar terisi, tarif air (Rp/m³), baseline biaya air (Rp/kamar/hari), ambang alert lain |
 | **Kalibrasi flow** | Uji ember, perbandingan meter PDAM, set/reset faktor manual, riwayat kalibrasi |
 
-## Cara import (ThingsBoard 3.6+ / 4.x)
+## Cara pasang (ThingsBoard 3.6+ / 4.x) — 3 file
 
-1. **Widget library → + → Import widgets bundle** → pilih `dist/get220v_water_widgets_bundle.json`.
-2. **Dashboards → + → Import dashboard** → pilih `dist/get220v_water_dashboard.json`.
-3. Buka panel **Setup**, isi kamar, tarif dan baseline → **Simpan setup**.
+Widget terdiri dari 3 file di `src/`: `widget.html`, `widget.css`, `widget.js`.
 
-Device air **terdeteksi otomatis**: alias "Water device" mencari semua device, lalu filter
-dashboard "Telemetry air aktif" hanya meloloskan device yang mengirim telemetry `flow_total_l`
-dan `tank_level_pct`. Tidak perlu mengatur Device Profile. Jika ada lebih dari satu device air
-dan ingin memilih device tertentu: **Edit → Entity aliases → Water device** → *Filter type*
-`Single entity` → pilih device.
+1. **Widget library → Widgets → + → Create new widget → Static widget**.
+2. Di editor widget:
+   - tab **HTML**: hapus isinya, paste `widget.html`
+   - tab **CSS**: hapus isinya, paste `widget.css`
+   - tab **JavaScript**: hapus seluruh isinya, paste `widget.js`
+3. Klik **Run** untuk pratinjau, lalu **Save** dengan nama mis. `Get220v Water Monitor`.
+4. Buka/buat dashboard → **Edit → + Add widget** → cari `Get220v Water Monitor` → **Add**.
+   Perbesar widget (mis. selebar dashboard, tinggi ±14 baris) lalu simpan dashboard.
+5. Di widget: pilih device dari dropdown, buka tab **Setup**, isi kamar, tarif dan baseline → **Simpan setup**.
 
-Jika panel menampilkan "Device air belum ditemukan", cek: device sudah mengirim telemetry
-(Devices → device → *Latest telemetry*), dan untuk customer user, device sudah di-assign ke
-customer tersebut.
+Tidak perlu entity alias, datasource atau data key. Dropdown hanya berisi device yang
+mengirim telemetry aktif `flow_total_l` dan `tank_level_pct`. Jika tidak ada device seperti itu,
+semua device ditampilkan dengan pemberitahuan. Device yang dipilih dan tab terakhir diingat
+per browser.
 
-### Update dari versi sebelumnya
-
-1. **Widget library → + → Import widget** → pilih `dist/get220v_water_monitor_widget.json`
-   (menimpa widget lama dengan nama yang sama).
-2. Hapus dashboard lama, lalu import ulang `dist/get220v_water_dashboard.json`.
-
-User yang membuka dashboard butuh izin menulis atribut device (tenant admin, atau customer user
-yang memiliki device tsb.) agar Setup, okupansi dan kalibrasi bisa disimpan.
+Untuk customer user: device harus di-assign ke customer tersebut agar muncul di dropdown.
+Agar Setup, okupansi dan kalibrasi bisa disimpan, akun butuh izin menulis atribut device
+(tenant admin, atau customer user pemilik device).
 
 ## Rumus
 
@@ -100,12 +98,8 @@ kalibrasi ditanam di firmware (K-factor pulsa/liter), reset faktor di dashboard 
 
 ## Pengembangan
 
-Sumber widget ada di `src/` (`widget.js`, `widget.css`, `widget.html`). Setelah mengubah:
+Ubah file di `src/`, lalu uji di Chromium (butuh playwright); screenshot disimpan di `test/out/`:
 
 ```bash
-node thingsboard/water-monitor/build.js        # membuat ulang dist/*.json
-node thingsboard/water-monitor/test/smoke.js   # uji di Chromium (butuh playwright), screenshot ke test/out/
+node thingsboard/water-monitor/test/smoke.js
 ```
-
-Satu tipe widget (`get220v_water.water_monitor`) dipakai 5 kali dengan `settings.view` berbeda:
-`alerts`, `live`, `usage`, `setup`, `calibration`.

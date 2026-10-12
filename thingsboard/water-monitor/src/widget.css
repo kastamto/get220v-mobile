@@ -17,6 +17,18 @@
   font-variant-numeric: tabular-nums;
 }
 .wm-root *, .wm-root *::before, .wm-root *::after { box-sizing: border-box; }
+.wm-topbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px;
+  padding-bottom: 8px; margin-bottom: 10px; border-bottom: 1px solid var(--wm-line); }
+.wm-device { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; min-width: 0; }
+.wm-device select { font: inherit; font-size: 14px; font-weight: 600; padding: 5px 8px; border: 1px solid #cfcec8; border-radius: 6px;
+  background: var(--wm-surface); color: var(--wm-text); max-width: 100%; }
+.wm-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+.wm-tab { font: inherit; border: 1px solid transparent; background: none; color: var(--wm-text-2); padding: 6px 12px;
+  border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.wm-tab:hover { background: var(--wm-surface-2); }
+.wm-tab.wm-on { background: #f3effb; color: var(--wm-accent); border-color: #d9cdf0; font-weight: 600; }
+.wm-count { color: #fff; border-radius: 9px; padding: 0 6px; font-size: 11px; font-weight: 600; line-height: 17px; }
+.wm-warnbox { background: #fff6e0; border-radius: 6px; padding: 6px 10px; margin: -2px 0 10px; color: var(--wm-text-2); }
 .wm-empty { padding: 24px; color: var(--wm-muted); text-align: center; }
 .wm-muted { color: var(--wm-muted); }
 .wm-error { color: #b22d2d; margin: 6px 0; }

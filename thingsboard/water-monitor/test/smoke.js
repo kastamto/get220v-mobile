@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// Smoke test: jalankan widget di Chromium dengan ctx ThingsBoard tiruan,
-// render kelima tampilan, uji alur simpan setup/okupansi/kalibrasi, dan
-// simpan screenshot ke test/out/.
+// Smoke test: jalankan widget (src/widget.html|css|js) di Chromium dengan
+// ctx ThingsBoard tiruan, dibungkus persis seperti ThingsBoard 4.2
+// (widget-component.service.ts), lalu uji semua tab dan simpan screenshot
+// ke test/out/.
 //
-//   node thingsboard/water-monitor/build.js
 //   node thingsboard/water-monitor/test/smoke.js
 
 const path = require('path');
@@ -15,8 +15,8 @@ try {
   ({ chromium } = require(path.join(process.execPath, '../../lib/node_modules/playwright')));
 }
 
-const ROOT = path.join(__dirname, '..');
-const widget = JSON.parse(fs.readFileSync(path.join(ROOT, 'dist/get220v_water_monitor_widget.json'), 'utf8'));
+const SRC = path.join(__dirname, '..', 'src');
+const read = (f) => fs.readFileSync(path.join(SRC, f), 'utf8');
 const OUT = path.join(__dirname, 'out');
 fs.mkdirSync(OUT, { recursive: true });
 
@@ -34,25 +34,23 @@ const ATTRS = {
   wm_baseline_cost_room_day: 2000, wm_warn_pct: 80,
 };
 
-const page = `<!doctype html><html><head><meta charset="utf-8"><style>
+const page = (opts) => `<!doctype html><html><head><meta charset="utf-8"><style>
 body{margin:0;background:#eee;font-family:Roboto,Arial,sans-serif}
 .box{background:#fff;margin:10px;box-shadow:0 1px 3px rgba(0,0,0,.2);overflow:hidden}
-.box h3{margin:0;padding:8px 12px;font:600 16px Roboto,Arial}
 .body{padding:8px}
-${widget.descriptor.templateCss}
+${read('widget.css')}
 </style></head><body>
 <script>
-const SCRIPT = ${JSON.stringify(widget.descriptor.controllerScript)};
-const TEMPLATE = ${JSON.stringify(widget.descriptor.templateHtml)};
+const SCRIPT = ${JSON.stringify(read('widget.js'))};
+const TEMPLATE = ${JSON.stringify(read('widget.html'))};
 const TELEMETRY = ${JSON.stringify(TELEMETRY)};
+const OPTS = ${JSON.stringify(opts)};
 window.ATTRS = ${JSON.stringify(ATTRS)};
 window.POSTS = [];
 window.TOASTS = [];
-const KEYS = ${JSON.stringify(widget.descriptor.defaultConfig)};
-const instances = [];
 const now = Date.now();
-const obs = (fn) => ({ subscribe: (next, err) => setTimeout(() => { try { next(fn()); } catch (e) { err && err(e); } }, 5) });
-function series(key, start, end, step, f) {
+const obs = (fn) => ({ subscribe: (next, err) => setTimeout(() => { let r; try { r = fn(); } catch (e) { err && err(e); return; } next(r); }, 5) });
+function series(start, end, step, f) {
   const out = [];
   for (let t = start; t <= end; t += step) out.push({ ts: t + step / 2, value: String(f(t)) });
   return out;
@@ -61,9 +59,19 @@ const http = {
   get(url) {
     const u = new URL(url, 'http://x');
     if (u.pathname.startsWith('/api/alarm/')) {
-      return obs(() => ({ data: [{ id: { id: 'a1' }, type: 'Pemakaian melebihi baseline', severity: 'CRITICAL', status: 'ACTIVE_UNACK', createdTime: now - 3600e3, acknowledged: false }] }));
+      return obs(() => ({ data: [{ id: { id: 'a1' }, type: 'Baseline air', severity: 'CRITICAL', status: 'ACTIVE_UNACK', createdTime: now - 3600e3, acknowledged: false }] }));
+    }
+    if (u.pathname.includes('/values/attributes/SERVER_SCOPE')) {
+      return obs(() => Object.keys(window.ATTRS).map((k) => ({ key: k, value: window.ATTRS[k], lastUpdateTs: now - 60e3 })));
     }
     const keys = u.searchParams.get('keys').split(',');
+    if (!u.searchParams.has('startTs')) {
+      return obs(() => {
+        const res = {};
+        keys.forEach((k) => { if (k in TELEMETRY) res[k] = [{ ts: now - 20e3, value: String(TELEMETRY[k]) }]; });
+        return res;
+      });
+    }
     const start = +u.searchParams.get('startTs'), end = +u.searchParams.get('endTs');
     const agg = u.searchParams.get('agg'), interval = +u.searchParams.get('interval');
     return obs(() => {
@@ -72,14 +80,14 @@ const http = {
         if (agg === 'NONE') { res[k] = []; return; }
         if (interval === 86400000) {
           let i = 0;
-          res[k] = series(k, start, end, interval, () => {
+          res[k] = series(start, end, interval, () => {
             i++;
             return { flow_today_l: 2300 + (i * 397) % 1500, flow_total_l: 100 + i * 3000, pump_runtime_today_s: 2400 + i * 13, pump_starts_today: 20 + (i % 9) }[k];
           });
         } else if (k === 'tank_level_pct') {
-          res[k] = series(k, start, end, interval, (t) => 60 + 30 * Math.sin(t / 7e6));
+          res[k] = series(start, end, interval, (t) => 60 + 30 * Math.sin(t / 7e6));
         } else {
-          res[k] = series(k, start, end, interval, (t) => Math.max(0, 40 * Math.sin(t / 3e6)));
+          res[k] = series(start, end, interval, (t) => Math.max(0, 40 * Math.sin(t / 3e6)));
         }
       });
       return res;
@@ -87,146 +95,152 @@ const http = {
   },
   post(url, body) {
     window.POSTS.push({ url, body });
+    if (url === '/api/entitiesQuery/find') {
+      const filtered = body.keyFilters.length > 0;
+      return obs(() => ({ data: (filtered && OPTS.noWaterDevice) ? [] : [
+        { entityId: { id: 'dev-1', entityType: 'DEVICE' }, latest: { ENTITY_FIELD: { name: { ts: 0, value: 'Tandon Utama' }, label: { ts: 0, value: '' } }, ATTRIBUTE: { active: { ts: 0, value: 'true' } } } },
+      ] }));
+    }
     return obs(() => {
-      if (url.includes('/attributes/SERVER_SCOPE')) {
-        Object.assign(window.ATTRS, body);
-        setTimeout(() => instances.forEach((s) => { s.ctx.data = makeData(); s.onDataUpdated(); }), 10);
-      }
+      if (url.includes('/attributes/SERVER_SCOPE')) Object.assign(window.ATTRS, body);
       return {};
     });
   },
 };
-function makeData() {
-  const ds = { entityId: 'dev-1', entityType: 'DEVICE', entityName: 'Tandon Utama' };
-  const items = [];
-  Object.keys(TELEMETRY).forEach((k) => items.push({ datasource: ds, dataKey: { name: k, type: 'timeseries' }, data: [[now - 20e3, String(TELEMETRY[k])]] }));
-  Object.keys(window.ATTRS).forEach((k) => {
-    const v = window.ATTRS[k];
-    items.push({ datasource: ds, dataKey: { name: k, type: 'attribute' }, data: [[now - 60e3, typeof v === 'string' ? v : String(v)]] });
-  });
-  return items;
-}
-// Dibungkus persis seperti ThingsBoard 4.2 (widget-component.service.ts):
-// function(ctx) { var self = this; self.ctx = ctx; <controllerScript> }
+// Dibungkus persis seperti ThingsBoard 4.2.
 const NL = String.fromCharCode(10);
-const WidgetType = new Function('return function _tenant_get220v_water_water_monitor (ctx) {' + NL +
+const WidgetType = new Function('return function _tenant_get220v_water_monitor (ctx) {' + NL +
   '    var self = this;' + NL + '    self.ctx = ctx;' + NL + SCRIPT + NL + '};' + NL)();
-window.TYPE_PARAMS = new WidgetType().typeParameters();
-window.mount = function (view, width, height, id, empty) {
+new WidgetType(); // ThingsBoard membuat instance tanpa ctx saat memuat tipe widget
+window.mount = function (width, height) {
   const box = document.createElement('div');
   box.className = 'box';
+  box.id = 'w';
   box.style.width = width + 'px';
-  box.innerHTML = '<h3>' + view + '</h3><div class="body" style="height:' + height + 'px">' + TEMPLATE + '</div>';
+  box.innerHTML = '<div class="body" style="height:' + height + 'px">' + TEMPLATE + '</div>';
   document.body.appendChild(box);
   const self = new WidgetType({
     $container: [box.querySelector('.body')],
-    settings: { view },
-    data: empty ? [] : makeData(),
+    settings: {},
+    data: [],
     http,
     showSuccessToast: (m) => window.TOASTS.push(['ok', m]),
     showErrorToast: (m) => window.TOASTS.push(['err', m]),
   });
   self.onInit();
-  if (!empty) instances.push(self);
-  box.id = 'w-' + (id || view);
-  return true;
+  self.onDataUpdated();
+  window.W_SELF = self;
 };
 </script></body></html>`;
 
 (async () => {
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, locale: 'id-ID', timezoneId: 'Asia/Jakarta' });
-  const p = await ctx.newPage();
   const errors = [];
-  p.on('pageerror', (e) => errors.push(String(e)));
-  p.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
-  await p.setContent(page);
-  if (errors.length) {
-    console.log('PAGE ERRORS:\n' + errors.join('\n'));
-    process.exit(1);
-  }
-
-  const views = [['alerts', 1240, 380], ['live', 1240, 640], ['usage', 1240, 900], ['setup', 520, 820], ['calibration', 700, 760]];
-  for (const [v, w, h] of views) await p.evaluate(([v, w, h]) => window.mount(v, w, h), [v, w, h]);
-  await p.waitForTimeout(300);
-
-  const check = async (label, fn) => {
+  let failed = false;
+  const open = async (opts, width, height) => {
+    const p = await ctx.newPage();
+    p.on('pageerror', (e) => errors.push(String(e)));
+    p.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+    await p.setContent(page(opts || {}));
+    await p.evaluate(([w, h]) => window.mount(w, h), [width, height]);
+    await p.waitForTimeout(150);
+    return p;
+  };
+  const check = async (p, label, fn) => {
     const ok = await p.evaluate(fn);
     console.log((ok ? 'PASS ' : 'FAIL ') + label);
-    if (!ok) process.exitCode = 1;
+    if (!ok) failed = true;
   };
-  await check('typeParameters: processNoDataByWidget so widget renders without a device', () => window.TYPE_PARAMS.processNoDataByWidget === true && window.TYPE_PARAMS.singleEntity === true);
-  await p.evaluate(() => window.mount('live', 600, 160, 'nodevice', true));
-  await check('no device: explains how to fix instead of blank panel', () => document.querySelector('#w-nodevice').textContent.includes('Device air belum ditemukan'));
-  await check('alerts: baseline exceeded is critical', () => document.querySelector('#w-alerts').textContent.includes('Pemakaian melebihi baseline'));
-  await check('alerts: server alarm listed', () => document.querySelector('#w-alerts .wm-table') !== null);
-  await check('live: 3.100 L usage & 103% baseline', () => {
-    const t = document.querySelector('#w-live').textContent;
+  const tab = async (p, name) => {
+    await p.click('[data-act="tab"][data-tab="' + name + '"]');
+    await p.waitForTimeout(150);
+  };
+
+  const p = await open({}, 1240, 860);
+  await check(p, 'device picker lists water device', () => document.querySelector('select[data-act="device"]').textContent.includes('Tandon Utama'));
+  await check(p, 'device query filters on active telemetry keys', () => window.POSTS[0].body.keyFilters.map((k) => k.key.key).join() === 'flow_total_l,tank_level_pct');
+  await check(p, 'live: 3.100 L usage & 103% baseline', () => {
+    const t = document.querySelector('#w .wm-body').textContent;
     return t.includes('3.100 L') && t.includes('103% baseline');
   });
-  await check('live: charts rendered', () => document.querySelectorAll('#w-live svg path').length >= 2);
-  await check('usage: 14 day rows + bars', () => document.querySelectorAll('#w-usage tbody tr').length === 14 && document.querySelectorAll('#w-usage svg path').length > 5);
+  await check(p, 'live: charts rendered', () => document.querySelectorAll('#w svg path').length >= 2);
+  await check(p, 'alert tab shows count badge', () => document.querySelector('[data-tab="alerts"] .wm-count').textContent === '1');
+  await p.screenshot({ path: path.join(OUT, 'live.png'), fullPage: true });
 
-  // Setup: ubah baseline -> pratinjau berubah -> simpan menulis atribut turunan.
-  await p.fill('#w-setup input[name="wm_baseline_cost_room_day"]', '2500');
-  await check('setup: preview updates live', () => document.querySelector('#w-setup [data-preview]').textContent.includes('208 L/kamar/hari'));
-  await p.click('#w-setup [data-act="save-setup"]');
-  await p.waitForTimeout(200);
-  await check('setup: saves derived baseline attrs', () => {
-    const b = window.POSTS.at(-1).body;
-    return b.wm_baseline_cost_room_day === 2500 && Math.abs(b.wm_baseline_day_l - 3750) < 0.01 && b.wm_baseline_day_raw_l === 3750;
-  });
-  await check('live: other widgets pick up new baseline (83%)', () => document.querySelector('#w-live').textContent.includes('83% baseline'));
-  await check('alerts: now warning, not critical', () => {
-    const t = document.querySelector('#w-alerts .wm-alerts').textContent;
-    return t.includes('Pemakaian mendekati baseline') && !t.includes('Pemakaian melebihi baseline');
-  });
+  await tab(p, 'alerts');
+  await check(p, 'alerts: baseline exceeded is critical', () => document.querySelector('#w .wm-alerts').textContent.includes('Pemakaian melebihi baseline'));
+  await p.waitForTimeout(100);
+  await check(p, 'alerts: server alarm listed', () => document.querySelector('#w .wm-table') !== null);
+  await p.screenshot({ path: path.join(OUT, 'alerts.png'), fullPage: true });
 
-  // Okupansi per hari dari tabel.
+  await tab(p, 'usage');
+  await check(p, 'usage: 14 day rows + bars', () => document.querySelectorAll('#w tbody tr').length === 14 && document.querySelectorAll('#w svg path').length > 5);
+  await p.screenshot({ path: path.join(OUT, 'usage.png'), fullPage: true });
   await p.evaluate(() => {
-    const el = document.querySelectorAll('#w-usage .wm-occ')[3];
+    const el = document.querySelectorAll('#w .wm-occ')[3];
     el.value = '12';
     el.dispatchEvent(new Event('change', { bubbles: true }));
   });
   await p.waitForTimeout(200);
-  await check('usage: per-day occupancy saved to wm_occ_log', () => Object.values(JSON.parse(window.ATTRS.wm_occ_log)).includes(12));
+  await check(p, 'usage: per-day occupancy saved to wm_occ_log', () => Object.values(JSON.parse(window.ATTRS.wm_occ_log)).includes(12));
 
-  // Kalibrasi metode 2: sensor 100 L vs meter 104 L -> x1.04.
-  await p.fill('#w-calibration [data-input="cal-m-sensor"]', '100');
-  await p.fill('#w-calibration [data-input="cal-m-meter"]', '104');
-  await p.click('#w-calibration [data-act="cal-manual"]');
-  await p.click('#w-calibration [data-act="cal-apply"]');
-  await p.waitForTimeout(200);
-  await check('calibration: factor 1.04 saved, raw threshold divided by factor', () => {
+  await tab(p, 'setup');
+  await p.fill('#w input[name="wm_baseline_cost_room_day"]', '2500');
+  await check(p, 'setup: preview updates live', () => document.querySelector('#w [data-preview]').textContent.includes('208 L/kamar/hari'));
+  await p.screenshot({ path: path.join(OUT, 'setup.png'), fullPage: true });
+  await p.click('#w [data-act="save-setup"]');
+  await p.waitForTimeout(250);
+  await check(p, 'setup: saves derived baseline attrs', () => {
+    const b = window.POSTS.at(-1).body;
+    return b.wm_baseline_cost_room_day === 2500 && Math.abs(b.wm_baseline_day_l - 3750) < 0.01 && b.wm_baseline_day_raw_l === 3750;
+  });
+  await tab(p, 'live');
+  await check(p, 'live: refreshed after save (83% baseline)', () => document.querySelector('#w .wm-body').textContent.includes('83% baseline'));
+  await tab(p, 'alerts');
+  await check(p, 'alerts: now warning, not critical', () => {
+    const t = document.querySelector('#w .wm-alerts').textContent;
+    return t.includes('Pemakaian mendekati baseline') && !t.includes('Pemakaian melebihi baseline');
+  });
+
+  await tab(p, 'calibration');
+  await p.fill('#w [data-input="cal-m-sensor"]', '100');
+  await p.fill('#w [data-input="cal-m-meter"]', '104');
+  await p.click('#w [data-act="cal-manual"]');
+  await p.click('#w [data-act="cal-apply"]');
+  await p.waitForTimeout(250);
+  await check(p, 'calibration: factor 1.04 saved, raw threshold divided by factor', () => {
     const b = window.POSTS.at(-1).body;
     return b.wm_cal_factor === 1.04 && Math.abs(b.wm_baseline_day_raw_l - b.wm_baseline_day_l / 1.04) < 0.01;
   });
-  await check('live: calibrated usage 3.224 L', () => document.querySelector('#w-live').textContent.includes('3.224 L'));
+  await p.screenshot({ path: path.join(OUT, 'calibration.png'), fullPage: true });
+  await tab(p, 'live');
+  await check(p, 'live: calibrated usage 3.224 L', () => document.querySelector('#w .wm-body').textContent.includes('3.224 L'));
 
-  await p.evaluate(() => window.scrollTo(0, 0));
-  await p.screenshot({ path: path.join(OUT, 'dashboard.png'), fullPage: true });
-  for (const [v] of views) await p.locator('#w-' + v).screenshot({ path: path.join(OUT, v + '.png') });
+  // Tidak ada device dengan telemetry air -> semua device ditampilkan + penjelasan.
+  const p2 = await open({ noWaterDevice: true }, 900, 400);
+  await check(p2, 'no water device: falls back to all devices with notice', () =>
+    document.querySelector('#w .wm-warnbox') !== null && document.querySelector('select[data-act="device"]') !== null);
 
   // Tampilan sempit (mobile).
-  const pm = await ctx.newPage();
-  pm.on('pageerror', (e) => errors.push(String(e)));
+  const pm = await open({}, 370, 760);
   await pm.setViewportSize({ width: 390, height: 800 });
-  await pm.setContent(page);
-  for (const [v] of views) await pm.evaluate((v) => window.mount(v, 370, 700), v);
-  await pm.waitForTimeout(300);
-  await pm.locator('#w-live').screenshot({ path: path.join(OUT, 'mobile-live.png') });
-  await pm.locator('#w-usage').screenshot({ path: path.join(OUT, 'mobile-usage.png') });
-  const mobileOk = await pm.evaluate(() => ['live', 'alerts', 'setup', 'calibration'].every((v) => {
-    const r = document.querySelector('#w-' + v + ' .wm-root');
-    return r.scrollWidth <= r.clientWidth + 1;
-  }));
-  console.log((mobileOk ? 'PASS ' : 'FAIL ') + 'mobile: no horizontal overflow (live/alerts/setup/calibration)');
-  if (!mobileOk) process.exitCode = 1;
+  await pm.screenshot({ path: path.join(OUT, 'mobile-live.png'), fullPage: true });
+  let mobileOk = true;
+  for (const t of ['alerts', 'live', 'setup', 'calibration']) {
+    await tab(pm, t);
+    mobileOk = mobileOk && await pm.evaluate(() => {
+      const r = document.querySelector('#w .wm-root');
+      return r.scrollWidth <= r.clientWidth + 1;
+    });
+  }
+  console.log((mobileOk ? 'PASS ' : 'FAIL ') + 'mobile: no horizontal overflow (alerts/live/setup/calibration)');
+  if (!mobileOk) failed = true;
 
-  console.log('toasts:', JSON.stringify(await p.evaluate(() => window.TOASTS)));
   if (errors.length) {
     console.log('PAGE ERRORS:\n' + errors.join('\n'));
-    process.exitCode = 1;
+    failed = true;
   }
   await browser.close();
+  process.exitCode = failed ? 1 : 0;
 })();

@@ -1,13 +1,17 @@
-// Get220v Water Monitor — ThingsBoard custom widget (tipe "latest values").
+// Get220v Water Monitor — ThingsBoard custom widget (tipe "Static widget").
 //
-// Satu kode, beberapa tampilan yang dipilih lewat settings.view:
-//   alerts | live | usage | setup | calibration
+// Cara pasang: Widget library → + → Create new widget → Static widget, lalu
+// paste widget.html ke tab HTML, widget.css ke tab CSS, dan file ini ke tab
+// JavaScript (ganti seluruh isi). Tidak perlu alias, datasource, atau data key.
 //
-// Semua konfigurasi (okupansi kamar, tarif, baseline, ambang alert, faktor
-// kalibrasi) disimpan sebagai SERVER_SCOPE attribute di device, sehingga:
-//   - semua widget/pengguna melihat setup yang sama secara realtime, dan
-//   - alarm rule di Device Profile bisa memakai baseline sebagai threshold
-//     dinamis (lihat README).
+// - Device air dipilih dari dropdown di widget: hanya device yang mengirim
+//   telemetry aktif flow_total_l dan tank_level_pct.
+// - Telemetry & konfigurasi diambil lewat REST setiap 10 detik.
+// - Tab: Alert | Live | Pemakaian | Setup | Kalibrasi.
+// - Konfigurasi (okupansi kamar, tarif, baseline, ambang alert, faktor
+//   kalibrasi) disimpan sebagai SERVER_SCOPE attribute di device, sehingga
+//   semua pengguna melihat setup yang sama dan alarm rule Device Profile bisa
+//   memakai baseline sebagai threshold dinamis (lihat README).
 
 const TELEMETRY_KEYS = [
   'alarm_level_high', 'alarm_level_low', 'evt', 'flow_lpm', 'flow_mode',
@@ -44,6 +48,18 @@ const STATUS = {
 const SERIES = '#2a78d6';
 const HARI = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
 
+const ATTRIBUTE_KEYS = Object.keys(CFG_DEFAULTS).concat(['wm_occ_log', 'wm_cal_log']);
+// Device dianggap "device air" bila mengirim kedua telemetry ini.
+const ACTIVE_KEYS = ['flow_total_l', 'tank_level_pct'];
+const TABS = [
+  ['alerts', 'Alert'],
+  ['live', 'Live'],
+  ['usage', 'Pemakaian'],
+  ['setup', 'Setup'],
+  ['calibration', 'Kalibrasi'],
+];
+const POLL_MS = 10000;
+
 let W = null;
 
 self.onInit = function () {
@@ -53,18 +69,23 @@ self.onInit = function () {
     root: self.ctx.$container[0].querySelector('.wm-root'),
     latest: {},
     entity: null,
+    devices: null,
+    devicesErr: null,
+    loaded: false,
     daily: null,
     dailyErr: null,
     range: 14,
     chart24: null,
     leak: false,
     serverAlarms: null,
+    alerts: [],
     prevAlertIds: null,
     timers: [],
     pendingRender: false,
     setupDirty: false,
   };
-  W.root.classList.add('wm-view-' + W.view);
+  const savedTab = store('tab', undefined, true);
+  if (savedTab && TABS.some((t) => t[0] === savedTab)) W.view = savedTab;
   W.onClick = (e) => handleClick(e);
   W.onChange = (e) => handleChange(e);
   W.onInput = (e) => handleInput(e);
@@ -82,22 +103,17 @@ self.onInit = function () {
   W.root.addEventListener('mousemove', W.onMove);
   W.root.addEventListener('mouseleave', W.onLeave);
 
-  every(30000, render); // agar status online/"x menit lalu" tetap segar
-  if (W.view === 'live') every(5 * 60000, fetchChart24);
-  if (W.view === 'usage') every(10 * 60000, fetchDaily);
-  if (W.view === 'alerts') {
-    every(2 * 60000, checkLeak);
-    every(60000, fetchServerAlarms);
-  }
-  self.onDataUpdated();
+  every(POLL_MS, poll);
+  every(5 * 60000, () => W.view === 'live' && fetchChart24());
+  every(10 * 60000, () => W.view === 'usage' && fetchDaily());
+  every(2 * 60000, checkLeak);
+  every(60000, fetchServerAlarms);
+  render();
+  loadDevices();
 };
 
-self.onDataUpdated = function () {
-  if (!W) return;
-  const changed = readData();
-  if (changed) onEntityChanged();
-  render();
-};
+// Widget statis: tidak memakai datasource/alias ThingsBoard sama sekali.
+self.onDataUpdated = function () {};
 
 self.onResize = function () {
   if (W) render(true);
@@ -115,62 +131,124 @@ self.onDestroy = function () {
   W = null;
 };
 
-self.typeParameters = function () {
-  return {
-    maxDatasources: 1,
-    dataKeysOptional: false,
-    singleEntity: true,
-    // Tanpa ini ThingsBoard tidak memanggil onInit saat alias tidak menemukan
-    // device, sehingga panel tampil kosong tanpa penjelasan.
-    processNoDataByWidget: true,
-  };
-};
-
 // ---------------------------------------------------------------- data ----
 
 function every(ms, fn) {
   W.timers.push(setInterval(() => W && fn(), ms));
 }
 
-function readData() {
-  let entity = null;
-  const latest = {};
-  (self.ctx.data || []).forEach((item) => {
-    const ds = item.datasource || {};
-    if (!entity && ds.entityId) {
-      entity = {
-        id: ds.entityId,
-        type: ds.entityType || 'DEVICE',
-        name: ds.entityLabel || ds.entityName || '',
-      };
-    }
-    const d = item.data;
-    if (d && d.length) {
-      const p = d[d.length - 1];
-      if (p && p[1] !== undefined && p[1] !== null && p[1] !== '') {
-        latest[item.dataKey.name] = { ts: p[0], v: p[1] };
-      }
-    }
+// Cari device yang mengirim telemetry air (key filter = telemetry aktif).
+function loadDevices() {
+  const query = (withFilter) => ({
+    entityFilter: { type: 'entityType', entityType: 'DEVICE' },
+    keyFilters: withFilter ? ACTIVE_KEYS.map((key) => ({
+      key: { type: 'TIME_SERIES', key },
+      valueType: 'NUMERIC',
+      predicate: { type: 'NUMERIC', operation: 'GREATER_OR_EQUAL', value: { defaultValue: -1000 } },
+    })) : [],
+    entityFields: [
+      { type: 'ENTITY_FIELD', key: 'name' },
+      { type: 'ENTITY_FIELD', key: 'label' },
+    ],
+    latestValues: [{ type: 'ATTRIBUTE', key: 'active' }],
+    pageLink: {
+      page: 0,
+      pageSize: 100,
+      sortOrder: { key: { type: 'ENTITY_FIELD', key: 'name' }, direction: 'ASC' },
+    },
   });
-  W.latest = latest;
-  const changed = !!entity && (!W.entity || W.entity.id !== entity.id);
-  if (entity) W.entity = entity;
-  return changed;
+  const toDevices = (res) => ((res && res.data) || []).map((e) => {
+    const f = (e.latest && e.latest.ENTITY_FIELD) || {};
+    const a = (e.latest && e.latest.ATTRIBUTE) || {};
+    return {
+      id: e.entityId.id,
+      type: e.entityId.entityType || 'DEVICE',
+      name: (f.label && f.label.value) || (f.name && f.name.value) || e.entityId.id,
+      active: a.active ? String(a.active.value) === 'true' : null,
+    };
+  });
+  api('post', '/api/entitiesQuery/find', query(true), (res) => {
+    W.devices = toDevices(res);
+    W.devicesAll = false;
+    if (W.devices.length) {
+      pickDevice();
+      return;
+    }
+    // Tidak ada yang cocok: tampilkan semua device agar tetap bisa dipilih.
+    api('post', '/api/entitiesQuery/find', query(false), (res2) => {
+      W.devices = toDevices(res2);
+      W.devicesAll = true;
+      pickDevice();
+    }, (err) => {
+      W.devicesErr = errMsg(err);
+      render();
+    });
+  }, (err) => {
+    W.devicesErr = errMsg(err);
+    render();
+  });
 }
 
-function onEntityChanged() {
+function pickDevice(id) {
+  const wanted = id || store('device', undefined, true);
+  const dev = W.devices.find((d) => d.id === wanted) ||
+    W.devices.find((d) => d.active) || W.devices[0];
+  if (!dev) {
+    W.entity = null;
+    render();
+    return;
+  }
+  store('device', dev.id, true);
+  W.entity = dev;
+  W.latest = {};
+  W.loaded = false;
   W.daily = null;
   W.chart24 = null;
   W.leak = false;
   W.serverAlarms = null;
   W.prevAlertIds = null;
   W.setupDirty = false;
-  if (W.view === 'live') fetchChart24();
-  if (W.view === 'usage') fetchDaily();
-  if (W.view === 'alerts') {
-    checkLeak();
-    fetchServerAlarms();
-  }
+  render(true);
+  poll();
+  onTabShown();
+  checkLeak();
+  fetchServerAlarms();
+}
+
+function onTabShown() {
+  if (W.view === 'live' && !W.chart24) fetchChart24();
+  if (W.view === 'usage' && !W.daily) fetchDaily();
+}
+
+// Ambil telemetry terbaru + atribut konfigurasi (SERVER_SCOPE) lewat REST.
+function poll(done) {
+  if (!W.entity) return;
+  const id = W.entity.id;
+  const base = '/api/plugins/telemetry/' + W.entity.type + '/' + id;
+  let pending = 2;
+  const latest = {};
+  const finish = () => {
+    if (--pending > 0 || !W || !W.entity || W.entity.id !== id) return;
+    W.latest = latest;
+    W.loaded = true;
+    W.alerts = evalAlerts(metrics());
+    trackAlerts(W.alerts);
+    render();
+    if (done) done();
+  };
+  api('get', base + '/values/timeseries?keys=' + TELEMETRY_KEYS.join(',') + '&useStrictDataTypes=false', null, (res) => {
+    Object.keys(res || {}).forEach((k) => {
+      const p = res[k] && res[k][0];
+      if (p && p.value !== null && p.value !== undefined && p.value !== '') latest[k] = { ts: p.ts, v: p.value };
+    });
+    finish();
+  }, finish);
+  api('get', base + '/values/attributes/SERVER_SCOPE?keys=' + ATTRIBUTE_KEYS.join(','), null, (res) => {
+    (res || []).forEach((a) => {
+      if (a && a.value !== null && a.value !== undefined && a.value !== '') latest[a.key] = { ts: a.lastUpdateTs, v: a.value };
+    });
+    finish();
+  }, finish);
 }
 
 function num(key, def) {
@@ -370,14 +448,15 @@ function trackAlerts(alerts) {
   W.prevAlertIds = ids;
 }
 
-function storeKey(name) {
-  return 'get220v_wm_' + name + '_' + (W.entity ? W.entity.id : 'x');
+function storeKey(name, global) {
+  return 'get220v_wm_' + name + (global ? '' : '_' + (W.entity ? W.entity.id : 'x'));
 }
 
-function store(name, value) {
+// Penyimpanan per browser (tab terakhir, device terpilih, riwayat alert).
+function store(name, value, global) {
   try {
-    if (value === undefined) return JSON.parse(localStorage.getItem(storeKey(name)) || 'null');
-    localStorage.setItem(storeKey(name), JSON.stringify(value));
+    if (value === undefined) return JSON.parse(localStorage.getItem(storeKey(name, global)) || 'null');
+    localStorage.setItem(storeKey(name, global), JSON.stringify(value));
   } catch (e) {
     return null;
   }
@@ -486,7 +565,7 @@ function saveAttrs(values, okMsg, done) {
   const url = '/api/plugins/telemetry/' + W.entity.type + '/' + W.entity.id + '/attributes/SERVER_SCOPE';
   api('post', url, values, () => {
     toast(okMsg || 'Tersimpan');
-    if (done) done(true);
+    poll(() => done && done(true));
   }, (err) => {
     toast('Gagal menyimpan: ' + errMsg(err) + ' (butuh izin tulis atribut device)', true);
     if (done) done(false);
@@ -573,24 +652,55 @@ function render(force) {
     return;
   }
   W.pendingRender = false;
-  if (!W.entity) {
-    W.root.innerHTML = '<div class="wm-empty"><b>Device air belum ditemukan.</b><br>' +
-      'Dashboard mencari device yang mengirim telemetry <code>flow_total_l</code> dan <code>tank_level_pct</code>.<br>' +
-      'Cek: device sudah mengirim data (Devices → device → Latest telemetry), device di-assign ke customer Anda, ' +
-      'atau atur entity alias “Water device” ke device tertentu (lihat README).</div>';
-    return;
-  }
-  W.root.classList.toggle('wm-wide', W.root.clientWidth > 720);
-  const m = metrics();
-  const html = {
-    alerts: renderAlerts,
-    live: renderLive,
-    usage: renderUsage,
-    setup: renderSetup,
-    calibration: renderCalibration,
-  }[W.view] || renderLive;
   if (W.view === 'setup' && W.setupDirty) return;
-  W.root.innerHTML = html(m) + '<div class="wm-tip" hidden></div>';
+  W.root.classList.toggle('wm-wide', W.root.clientWidth > 720);
+  let body;
+  if (!W.entity) {
+    body = W.devicesErr ? '<div class="wm-error">Gagal memuat daftar device: ' + esc(W.devicesErr) + '</div>'
+      : W.devices === null ? '<div class="wm-empty">Memuat daftar device…</div>'
+        : '<div class="wm-empty"><b>Tidak ada device.</b><br>Pastikan akun ini bisa melihat device air ' +
+          '(untuk customer user: device sudah di-assign ke customer).</div>';
+  } else if (!W.loaded) {
+    body = '<div class="wm-empty">Memuat telemetry…</div>';
+  } else {
+    const view = {
+      alerts: renderAlerts,
+      live: renderLive,
+      usage: renderUsage,
+      setup: renderSetup,
+      calibration: renderCalibration,
+    }[W.view] || renderLive;
+    body = view(metrics());
+  }
+  W.root.innerHTML = renderTopbar() + '<div class="wm-body">' + body + '</div><div class="wm-tip" hidden></div>';
+}
+
+function renderTopbar() {
+  let h = '<div class="wm-topbar"><div class="wm-device">';
+  if (W.devices && W.devices.length) {
+    h += '<select data-act="device" title="Pilih device">' + W.devices.map((d) =>
+      '<option value="' + esc(d.id) + '"' + (W.entity && d.id === W.entity.id ? ' selected' : '') + '>' +
+      esc(d.name) + (d.active === false ? ' (tidak aktif)' : '') + '</option>').join('') + '</select>';
+  }
+  if (W.entity && W.loaded) {
+    const m = metrics();
+    h += badge(m.online ? 'good' : 'critical', m.online ? 'Online' : 'Offline') +
+      '<span class="wm-muted">update ' + (m.lastTs ? ago(m.lastTs) : '—') + '</span>';
+  }
+  h += '</div><div class="wm-tabs">';
+  const n = W.alerts.filter((a) => a.level !== 'info').length;
+  const worst = W.alerts.some((a) => a.level === 'critical') ? 'critical' : 'warning';
+  TABS.forEach((t) => {
+    h += '<button class="wm-tab' + (W.view === t[0] ? ' wm-on' : '') + '" data-act="tab" data-tab="' + t[0] + '">' + t[1] +
+      (t[0] === 'alerts' && n ? ' <span class="wm-count" style="background:' + STATUS[worst].color + '">' + n + '</span>' : '') +
+      '</button>';
+  });
+  h += '</div></div>';
+  if (W.devicesAll) {
+    h += '<div class="wm-note wm-warnbox">Tidak ada device yang mengirim telemetry <code>flow_total_l</code> dan ' +
+      '<code>tank_level_pct</code>, jadi semua device ditampilkan. Pilih device air Anda dari daftar.</div>';
+  }
+  return h;
 }
 
 function badge(level, text) {
@@ -614,13 +724,10 @@ function meter(pct, level) {
 
 function renderAlerts(m) {
   const alerts = evalAlerts(m);
-  trackAlerts(alerts);
   const count = (lv) => alerts.filter((a) => a.level === lv).length;
   const worst = count('critical') ? 'critical' : count('warning') ? 'warning' : 'good';
   let h = '<div class="wm-head">' +
-    '<div class="wm-title">' + esc(W.entity.name) + ' ' +
-    badge(m.online ? 'good' : 'critical', m.online ? 'Online' : 'Offline') +
-    ' <span class="wm-muted">update ' + (m.lastTs ? ago(m.lastTs) : '—') + '</span></div>' +
+    '<div class="wm-title">' + esc(W.entity.name) + '</div>' +
     '<div class="wm-actions">' +
     '<label class="wm-check"><input type="checkbox" data-act="notify"' + (store('notify') ? ' checked' : '') + '> Notifikasi browser</label>' +
     '</div></div>';
@@ -676,10 +783,8 @@ function renderLive(m) {
       : m.level > c.wm_tank_high_pct ? 'warning' : 'good';
   const rssi = num('rssi', null);
 
-  let h = '<div class="wm-head"><div class="wm-title">' + esc(W.entity.name) + ' ' +
-    badge(m.online ? 'good' : 'critical', m.online ? 'Online' : 'Offline') +
-    ' <span class="wm-muted">update ' + (m.lastTs ? ago(m.lastTs) : '—') +
-    ' · RSSI ' + (rssi === null ? '—' : rssi + ' dBm') +
+  let h = '<div class="wm-head"><div class="wm-title">' + esc(W.entity.name) +
+    ' <span class="wm-muted">RSSI ' + (rssi === null ? '—' : rssi + ' dBm') +
     ' · uptime ' + fmtDur(num('uptime_s', 0)) + '</span></div>' +
     (m.cal !== 1 ? '<span class="wm-muted">Kalibrasi flow ×' + fmtNum(m.cal, 4) + '</span>' : '') + '</div>';
 
@@ -1043,13 +1148,20 @@ function applyFactor(f, entry) {
 
 function handleClick(e) {
   const el = e.target.closest('[data-act]');
-  if (!el || el.tagName === 'INPUT') return;
+  if (!el || /INPUT|SELECT/.test(el.tagName)) return;
   const act = el.getAttribute('data-act');
   const val = (sel) => {
     const x = W.root.querySelector('[data-input="' + sel + '"]');
     return x ? parseFloat(x.value) : NaN;
   };
   switch (act) {
+    case 'tab':
+      W.view = el.getAttribute('data-tab');
+      W.setupDirty = false;
+      store('tab', W.view, true);
+      render(true);
+      onTabShown();
+      break;
     case 'range':
       W.range = parseInt(el.getAttribute('data-n'), 10);
       W.daily = null;
@@ -1115,6 +1227,10 @@ function handleClick(e) {
 
 function handleChange(e) {
   const t = e.target;
+  if (t.matches('select[data-act="device"]')) {
+    pickDevice(t.value);
+    return;
+  }
   if (t.matches('[data-act="notify"]')) {
     if (t.checked && typeof Notification !== 'undefined' && Notification.permission === 'default') {
       Notification.requestPermission();
