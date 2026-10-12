@@ -106,24 +106,29 @@ function makeData() {
   });
   return items;
 }
-window.mount = function (view, width, height) {
+// Dibungkus persis seperti ThingsBoard 4.2 (widget-component.service.ts):
+// function(ctx) { var self = this; self.ctx = ctx; <controllerScript> }
+const NL = String.fromCharCode(10);
+const WidgetType = new Function('return function _tenant_get220v_water_water_monitor (ctx) {' + NL +
+  '    var self = this;' + NL + '    self.ctx = ctx;' + NL + SCRIPT + NL + '};' + NL)();
+window.TYPE_PARAMS = new WidgetType().typeParameters();
+window.mount = function (view, width, height, id, empty) {
   const box = document.createElement('div');
   box.className = 'box';
   box.style.width = width + 'px';
   box.innerHTML = '<h3>' + view + '</h3><div class="body" style="height:' + height + 'px">' + TEMPLATE + '</div>';
   document.body.appendChild(box);
-  const self = { ctx: {
+  const self = new WidgetType({
     $container: [box.querySelector('.body')],
     settings: { view },
-    data: makeData(),
+    data: empty ? [] : makeData(),
     http,
     showSuccessToast: (m) => window.TOASTS.push(['ok', m]),
     showErrorToast: (m) => window.TOASTS.push(['err', m]),
-  } };
-  new Function('self', SCRIPT)(self);
+  });
   self.onInit();
-  instances.push(self);
-  box.id = 'w-' + view;
+  if (!empty) instances.push(self);
+  box.id = 'w-' + (id || view);
   return true;
 };
 </script></body></html>`;
@@ -136,6 +141,10 @@ window.mount = function (view, width, height) {
   p.on('pageerror', (e) => errors.push(String(e)));
   p.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
   await p.setContent(page);
+  if (errors.length) {
+    console.log('PAGE ERRORS:\n' + errors.join('\n'));
+    process.exit(1);
+  }
 
   const views = [['alerts', 1240, 380], ['live', 1240, 640], ['usage', 1240, 900], ['setup', 520, 820], ['calibration', 700, 760]];
   for (const [v, w, h] of views) await p.evaluate(([v, w, h]) => window.mount(v, w, h), [v, w, h]);
@@ -146,6 +155,9 @@ window.mount = function (view, width, height) {
     console.log((ok ? 'PASS ' : 'FAIL ') + label);
     if (!ok) process.exitCode = 1;
   };
+  await check('typeParameters: processNoDataByWidget so widget renders without a device', () => window.TYPE_PARAMS.processNoDataByWidget === true && window.TYPE_PARAMS.singleEntity === true);
+  await p.evaluate(() => window.mount('live', 600, 160, 'nodevice', true));
+  await check('no device: explains how to fix instead of blank panel', () => document.querySelector('#w-nodevice').textContent.includes('Device air belum ditemukan'));
   await check('alerts: baseline exceeded is critical', () => document.querySelector('#w-alerts').textContent.includes('Pemakaian melebihi baseline'));
   await check('alerts: server alarm listed', () => document.querySelector('#w-alerts .wm-table') !== null);
   await check('live: 3.100 L usage & 103% baseline', () => {

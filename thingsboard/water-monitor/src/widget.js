@@ -120,6 +120,9 @@ self.typeParameters = function () {
     maxDatasources: 1,
     dataKeysOptional: false,
     singleEntity: true,
+    // Tanpa ini ThingsBoard tidak memanggil onInit saat alias tidak menemukan
+    // device, sehingga panel tampil kosong tanpa penjelasan.
+    processNoDataByWidget: true,
   };
 };
 
@@ -571,7 +574,10 @@ function render(force) {
   }
   W.pendingRender = false;
   if (!W.entity) {
-    W.root.innerHTML = '<div class="wm-empty">Menunggu data device… Pastikan entity alias menunjuk ke device yang aktif.</div>';
+    W.root.innerHTML = '<div class="wm-empty"><b>Device air belum ditemukan.</b><br>' +
+      'Dashboard mencari device yang mengirim telemetry <code>flow_total_l</code> dan <code>tank_level_pct</code>.<br>' +
+      'Cek: device sudah mengirim data (Devices → device → Latest telemetry), device di-assign ke customer Anda, ' +
+      'atau atur entity alias “Water device” ke device tertentu (lihat README).</div>';
     return;
   }
   W.root.classList.toggle('wm-wide', W.root.clientWidth > 720);

@@ -15,9 +15,23 @@ aktif device (`flow_*`, `tank_*`, `pump_*`, `alarm_level_*`, `rssi`, `evt`, `sec
 
 1. **Widget library → + → Import widgets bundle** → pilih `dist/get220v_water_widgets_bundle.json`.
 2. **Dashboards → + → Import dashboard** → pilih `dist/get220v_water_dashboard.json`.
-3. Buka dashboard → **Edit → Entity aliases → "Water device"** → ganti Device Profile `default`
-   dengan profile device air Anda. Jika ada beberapa device, pilih device dari toolbar dashboard.
-4. Buka panel **Setup**, isi kamar, tarif dan baseline → **Simpan setup**.
+3. Buka panel **Setup**, isi kamar, tarif dan baseline → **Simpan setup**.
+
+Device air **terdeteksi otomatis**: alias "Water device" mencari semua device, lalu filter
+dashboard "Telemetry air aktif" hanya meloloskan device yang mengirim telemetry `flow_total_l`
+dan `tank_level_pct`. Tidak perlu mengatur Device Profile. Jika ada lebih dari satu device air
+dan ingin memilih device tertentu: **Edit → Entity aliases → Water device** → *Filter type*
+`Single entity` → pilih device.
+
+Jika panel menampilkan "Device air belum ditemukan", cek: device sudah mengirim telemetry
+(Devices → device → *Latest telemetry*), dan untuk customer user, device sudah di-assign ke
+customer tersebut.
+
+### Update dari versi sebelumnya
+
+1. **Widget library → + → Import widget** → pilih `dist/get220v_water_monitor_widget.json`
+   (menimpa widget lama dengan nama yang sama).
+2. Hapus dashboard lama, lalu import ulang `dist/get220v_water_dashboard.json`.
 
 User yang membuka dashboard butuh izin menulis atribut device (tenant admin, atau customer user
 yang memiliki device tsb.) agar Setup, okupansi dan kalibrasi bisa disimpan.
