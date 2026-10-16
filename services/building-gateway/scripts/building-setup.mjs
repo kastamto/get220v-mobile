@@ -9,14 +9,22 @@
  *   npm run setup -- link --building <id|nama> --devices <uuid,uuid> [--space <assetId>] [--apply]
  *   npm run setup -- dashboards --building <id|nama> --set <dashUuid,dashUuid> [--apply]
  *   npm run setup -- show --building <id|nama>
+ *
+ * Bulk (semua device sekaligus lewat CSV/Excel):
+ *   npm run setup -- export [--out devices.csv]     # semua device + building sekarang + saran
+ *   npm run setup -- bulk --file devices.csv [--apply]
+ *   npm run setup -- undo --file bulk-undo-<waktu>.json [--apply]
  */
+import { readFileSync, writeFileSync } from 'node:fs';
 import { loadDotEnv } from '../src/config.js';
 import { TbClient } from '../src/tbClient.js';
+import { parseCsv, toCsv, planBulk } from '../src/bulk.js';
 
 loadDotEnv();
 const env = process.env;
 const TYPE = env.BUILDING_ASSET_TYPE || 'building';
 const REL = env.BUILDING_RELATION_TYPE || 'Contains';
+const SPACE_TYPE = env.SPACE_ASSET_TYPE || 'space';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const [cmd, ...rest] = process.argv.slice(2);
@@ -69,6 +77,37 @@ async function relations(bid) {
     filters: [{ relationType: REL, entityTypes: ['ASSET', 'DEVICE'] }],
   });
 }
+
+// Asset space dibuat dengan nama "<Building> - <Space>" (nama asset TB unik per tenant); bandingkan tanpa prefix.
+const spaceName = (buildingName, assetName) => (assetName?.startsWith(`${buildingName} - `) ? assetName.slice(buildingName.length + 3) : assetName);
+
+/** Kondisi tenant sekarang: device, building, space, dan parent (relasi Contains yang dikelola) tiap device. */
+async function tenantState() {
+  const devices = (await pageAll('/api/tenant/deviceInfos')).map((d) => ({
+    id: d.id.id,
+    name: d.name,
+    label: d.label ?? '',
+    type: d.type,
+    customer: d.customerIsPublic ? '' : d.customerTitle ?? '',
+  }));
+  const blds = (await buildings()).map((b) => ({ id: b.id.id, name: b.name }));
+  const spaces = [];
+  const parents = new Map();
+  for (const b of blds) {
+    for (const r of await relations(b.id)) {
+      if (r.to.entityType === 'ASSET') spaces.push({ id: r.to.id, name: spaceName(b.name, r.toName), buildingId: b.id, parentId: r.from.id });
+      else if (r.to.entityType === 'DEVICE') {
+        if (!parents.has(r.to.id)) parents.set(r.to.id, []);
+        if (!parents.get(r.to.id).some((p) => p.fromId === r.from.id)) parents.get(r.to.id).push({ fromId: r.from.id, buildingId: b.id });
+      }
+    }
+  }
+  return { devices, buildings: blds, spaces, parents };
+}
+
+const relationBody = (fromId, toId, toType) => ({ from: { id: fromId, entityType: 'ASSET' }, to: { id: toId, entityType: toType }, type: REL, typeGroup: 'COMMON' });
+const deleteRelationPath = (fromId, toId, toType) =>
+  `/api/relation?${new URLSearchParams({ fromId, fromType: 'ASSET', relationType: REL, relationTypeGroup: 'COMMON', toId, toType })}`;
 
 const dry = () => console.log(APPLY ? '' : '\n(DRY-RUN — tambahkan --apply untuk menulis ke TB)');
 
@@ -143,6 +182,122 @@ const commands = {
     dry();
   },
 
+  async export() {
+    const st = await tenantState();
+    const bName = new Map(st.buildings.map((b) => [b.id, b.name]));
+    const sName = new Map(st.spaces.map((x) => [x.id, x.name]));
+    const rows = st.devices
+      .map((d) => {
+        const p = st.parents.get(d.id)?.[0];
+        return {
+          id: d.id,
+          name: d.name,
+          label: d.label,
+          type: d.type,
+          customer: d.customer,
+          building: p ? bName.get(p.buildingId) : '',
+          space: p && p.fromId !== p.buildingId ? sName.get(p.fromId) ?? '' : '',
+          suggested_building: p ? '' : d.customer,
+        };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const out = typeof args.out === 'string' ? args.out : 'devices.csv';
+    writeFileSync(out, toCsv(rows, ['id', 'name', 'label', 'type', 'customer', 'building', 'space', 'suggested_building']));
+    const linked = rows.filter((r) => r.building).length;
+    console.log(`${rows.length} device ditulis ke ${out} (${linked} sudah punya building, ${rows.length - linked} belum).`);
+    console.log('Isi kolom "building" (dan "space" opsional, mis. "Lantai 2"), lalu: npm run setup -- bulk --file ' + out);
+  },
+
+  async bulk() {
+    if (typeof args.file !== 'string') throw new Error('--file <csv> wajib');
+    const rows = parseCsv(readFileSync(args.file, 'utf8'));
+    const st = await tenantState();
+    const plan = planBulk({ rows, devices: st.devices, buildings: st.buildings, spaces: st.spaces, parents: st.parents });
+
+    console.log(`Rencana dari ${args.file} (${rows.length} baris):`);
+    for (const b of plan.createBuildings) console.log(`  + building baru   : ${b.name}`);
+    for (const x of plan.createSpaces) console.log(`  + space baru      : ${x.buildingName} / ${x.name}`);
+    for (const l of plan.link) console.log(`  → link           : ${l.deviceName}  ⇒  ${l.building}${l.space ? ` / ${l.space}` : ''}`);
+    for (const u of plan.unlink) console.log(`  ✕ lepas relasi lama: ${u.deviceName}  (dari ${u.fromId})`);
+    console.log(`  = tidak berubah   : ${plan.unchanged.length} device, dilewati (building kosong): ${plan.skipped.length}`);
+    for (const e of plan.errors) console.log(`  ! ${e}`);
+    if (plan.errors.length) {
+      console.log('\nPerbaiki error di CSV dulu; tidak ada yang ditulis.');
+      process.exitCode = 1;
+      return;
+    }
+    if (!APPLY) return dry();
+
+    const journal = { createdAt: new Date().toISOString(), file: args.file, actions: [] };
+    const journalFile = `bulk-undo-${journal.createdAt.replace(/[:.]/g, '-')}.json`;
+    const save = () => writeFileSync(journalFile, JSON.stringify(journal, null, 2));
+    const ids = new Map(); // key rencana -> asset id
+    try {
+      for (const b of plan.createBuildings) {
+        const a = await tb.asTenant('POST', '/api/asset', { name: b.name, type: TYPE });
+        ids.set(b.key, a.id.id);
+        journal.actions.push({ op: 'createAsset', id: a.id.id, name: b.name });
+        save();
+      }
+      const resolve = (k) => ids.get(k) ?? k;
+      for (const x of plan.createSpaces) {
+        const a = await tb.asTenant('POST', '/api/asset', { name: `${x.buildingName} - ${x.name}`, label: x.name, type: SPACE_TYPE });
+        ids.set(x.key, a.id.id);
+        journal.actions.push({ op: 'createAsset', id: a.id.id, name: a.name });
+        await tb.asTenant('POST', '/api/relation', relationBody(resolve(x.buildingKey), a.id.id, 'ASSET'));
+        journal.actions.push({ op: 'createRelation', fromId: resolve(x.buildingKey), toId: a.id.id, toType: 'ASSET' });
+        save();
+      }
+      for (const u of plan.unlink) {
+        await tb.asTenant('DELETE', deleteRelationPath(u.fromId, u.deviceId, 'DEVICE'));
+        journal.actions.push({ op: 'deleteRelation', fromId: u.fromId, toId: u.deviceId, toType: 'DEVICE' });
+        save();
+      }
+      for (const l of plan.link) {
+        await tb.asTenant('POST', '/api/relation', relationBody(resolve(l.targetKey), l.deviceId, 'DEVICE'));
+        journal.actions.push({ op: 'createRelation', fromId: resolve(l.targetKey), toId: l.deviceId, toType: 'DEVICE' });
+        save();
+      }
+      // flag di device: memudahkan filter / alias dashboard / FMEA tanpa query relasi
+      for (const l of [...plan.link, ...plan.unchanged]) {
+        await tb.asTenant('POST', `/api/plugins/telemetry/DEVICE/${l.deviceId}/attributes/SERVER_SCOPE`, {
+          building: l.building,
+          buildingId: resolve(l.buildingKey),
+          space: l.space ?? '',
+        });
+      }
+      journal.actions.push({ op: 'flags', deviceIds: [...plan.link, ...plan.unchanged].map((l) => l.deviceId) });
+      save();
+    } catch (e) {
+      save();
+      console.error(`\nGAGAL di tengah jalan: ${e.message}`);
+      console.error(`Yang sudah dikerjakan tercatat di ${journalFile}; batalkan dengan: npm run setup -- undo --file ${journalFile} --apply`);
+      process.exit(1);
+    }
+    console.log(`\nSelesai. Catatan undo: ${journalFile}`);
+  },
+
+  async undo() {
+    if (typeof args.file !== 'string') throw new Error('--file bulk-undo-*.json wajib');
+    const journal = JSON.parse(readFileSync(args.file, 'utf8'));
+    const steps = [...journal.actions].reverse();
+    for (const a of steps) {
+      if (a.op === 'flags') console.log(`  hapus flag building/buildingId/space di ${a.deviceIds.length} device`);
+      if (a.op === 'createRelation') console.log(`  hapus relasi ${a.fromId} → ${a.toId}`);
+      if (a.op === 'deleteRelation') console.log(`  pulihkan relasi ${a.fromId} → ${a.toId}`);
+      if (a.op === 'createAsset') console.log(`  hapus asset ${a.name} (${a.id})`);
+    }
+    if (!APPLY) return dry();
+    for (const a of steps) {
+      if (a.op === 'flags') {
+        for (const id of a.deviceIds) await tb.asTenant('DELETE', `/api/plugins/telemetry/DEVICE/${id}/SERVER_SCOPE?keys=building,buildingId,space`);
+      } else if (a.op === 'createRelation') await tb.asTenant('DELETE', deleteRelationPath(a.fromId, a.toId, a.toType)).catch(() => {});
+      else if (a.op === 'deleteRelation') await tb.asTenant('POST', '/api/relation', relationBody(a.fromId, a.toId, a.toType));
+      else if (a.op === 'createAsset') await tb.asTenant('DELETE', `/api/asset/${a.id}`).catch(() => {});
+    }
+    console.log('Undo selesai.');
+  },
+
   async show() {
     const b = await resolveBuilding(args.building);
     const rels = await relations(b.id.id);
@@ -165,7 +320,7 @@ const commands = {
 };
 
 if (!commands[cmd]) {
-  console.log('Perintah: list | create | link | dashboards | show   (lihat komentar di atas file)');
+  console.log('Perintah: list | create | link | dashboards | show | export | bulk | undo   (lihat komentar di atas file)');
   process.exit(cmd ? 1 : 0);
 }
 commands[cmd]().catch((e) => {

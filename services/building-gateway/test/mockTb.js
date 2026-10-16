@@ -34,16 +34,42 @@ export async function startMockTb() {
     [ID.B1]: { id: { id: ID.B1 }, name: 'Rukita Amani', label: 'Jaksel', type: 'building' },
     [ID.B2]: { id: { id: ID.B2 }, name: 'Rukita Bintaro', type: 'building' },
     [ID.ROOM]: { id: { id: ID.ROOM }, name: 'Gudang', type: 'room' },
+    [ID.F1]: { id: { id: ID.F1 }, name: 'Lantai 1', type: 'space' },
   };
   const devices = {
     [ID.DEV1]: { id: { id: ID.DEV1 }, name: 'Pompa A', label: 'Pompa Dwi Warna', type: 'pump' },
     [ID.DEV2]: { id: { id: ID.DEV2 }, name: 'Gerbang', type: 'door' },
     [ID.DEV3]: { id: { id: ID.DEV3 }, name: 'Meter Bintaro', type: 'meter' },
   };
-  const rel = (from, to, toType, toName) => ({ from: { id: from, entityType: 'ASSET' }, to: { id: to, entityType: toType }, type: 'Contains', toName });
-  const relations = {
-    [ID.B1]: [rel(ID.B1, ID.F1, 'ASSET', 'Lantai 1'), rel(ID.F1, ID.DEV1, 'DEVICE', 'Pompa A'), rel(ID.B1, ID.DEV2, 'DEVICE', 'Gerbang')],
-    [ID.B2]: [rel(ID.B2, ID.DEV3, 'DEVICE', 'Meter Bintaro')],
+  const nameOf = (id) => assets[id]?.name ?? devices[id]?.name ?? null;
+  // relasi disimpan sebagai edge supaya bisa ditambah/dihapus (bulk/undo)
+  const edges = [
+    { from: ID.B1, to: ID.F1, toType: 'ASSET' },
+    { from: ID.F1, to: ID.DEV1, toType: 'DEVICE' },
+    { from: ID.B1, to: ID.DEV2, toType: 'DEVICE' },
+    { from: ID.B2, to: ID.DEV3, toType: 'DEVICE' },
+  ];
+  state.edges = edges;
+  state.assets = assets;
+  state.serverAttrs = {}; // deviceId -> {key: value}
+  const relationsFrom = (root, maxLevel) => {
+    const out = [];
+    let frontier = [root];
+    const seen = new Set([root]);
+    for (let lvl = 0; lvl < maxLevel && frontier.length; lvl++) {
+      const next = [];
+      for (const f of frontier) {
+        for (const e of edges.filter((x) => x.from === f)) {
+          out.push({ from: { id: e.from, entityType: 'ASSET' }, to: { id: e.to, entityType: e.toType }, type: 'Contains', toName: nameOf(e.to) });
+          if (e.toType === 'ASSET' && !seen.has(e.to)) {
+            seen.add(e.to);
+            next.push(e.to);
+          }
+        }
+      }
+      frontier = next;
+    }
+    return out;
   };
   const latest = {
     [ID.DEV1]: { current_a: [{ ts: 10, value: '2.5' }], running: [{ ts: 10, value: 'true' }], mode: [{ ts: 10, value: 'auto' }] },
@@ -78,12 +104,49 @@ export async function startMockTb() {
     }
     let m;
     if ((m = p.match(/^\/api\/asset\/(.+)$/))) {
+      if (req.method === 'DELETE') {
+        delete assets[m[1]];
+        for (let i = edges.length - 1; i >= 0; i--) if (edges[i].from === m[1] || edges[i].to === m[1]) edges.splice(i, 1);
+        return json(200);
+      }
       const a = assets[m[1]];
       if (!a) return json(404, { message: 'nf' });
       if (isUser && m[1] !== ID.B1) return json(403, { message: 'denied' });
       return json(200, a);
     }
-    if (p === '/api/relations/info' && isTenant) return json(200, relations[JSON.parse(body).parameters.rootId] ?? []);
+    if (p === '/api/relations/info' && isTenant) {
+      const q = JSON.parse(body).parameters;
+      return json(200, relationsFrom(q.rootId, q.maxLevel));
+    }
+    if (p === '/api/tenant/deviceInfos' && isTenant) {
+      const data = Object.values(devices).map((d) => ({ ...d, customerTitle: d.id.id === ID.DEV3 ? 'Bintaro Owner' : null, customerIsPublic: false }));
+      return json(200, { data, totalElements: data.length, hasNext: false });
+    }
+    if (p === '/api/asset' && req.method === 'POST' && isTenant) {
+      const a = JSON.parse(body);
+      const id = `a${String(Object.keys(assets).length).padStart(7, '0')}-0000-0000-0000-000000000000`;
+      assets[id] = { id: { id }, name: a.name, label: a.label, type: a.type };
+      return json(200, assets[id]);
+    }
+    if (p === '/api/relation' && isTenant) {
+      if (req.method === 'POST') {
+        const r = JSON.parse(body);
+        edges.push({ from: r.from.id, to: r.to.id, toType: r.to.entityType });
+        return json(200);
+      }
+      if (req.method === 'DELETE') {
+        const q = url.searchParams;
+        const i = edges.findIndex((e) => e.from === q.get('fromId') && e.to === q.get('toId'));
+        if (i < 0) return json(404, { message: 'relation nf' });
+        edges.splice(i, 1);
+        return json(200);
+      }
+    }
+    if ((m = p.match(/^\/api\/plugins\/telemetry\/DEVICE\/([^/]+)\/(attributes\/)?SERVER_SCOPE$/)) && isTenant && req.method !== 'GET') {
+      if (req.method === 'POST') state.serverAttrs[m[1]] = { ...state.serverAttrs[m[1]], ...JSON.parse(body) };
+      else for (const k of url.searchParams.get('keys').split(',')) delete state.serverAttrs[m[1]]?.[k];
+      return json(200);
+    }
     if (p === '/api/entitiesQuery/find' && isTenant) {
       const q = JSON.parse(body);
       const data = q.entityFilter.entityList.map((id) => ({

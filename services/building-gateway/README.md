@@ -49,6 +49,36 @@ npm run setup -- show --building "Rukita Amani"          # pohon gedung
 
 Semua perintah tulis default **dry-run**. Hasilnya bisa dicek di TB UI (Assets → Relations).
 
+### Bulk: semua device sekaligus lewat CSV / Excel
+
+```bash
+npm run setup -- export --out devices.csv     # semua device + building sekarang + saran (dari customer)
+# edit devices.csv di Excel/Sheets: isi kolom "building" (dan "space" opsional, mis. "Lantai 2")
+npm run setup -- bulk --file devices.csv      # DRY-RUN: tampilkan rencana
+npm run setup -- bulk --file devices.csv --apply
+npm run setup -- undo --file bulk-undo-<waktu>.json --apply   # kalau perlu dibatalkan
+```
+
+- Kolom yang dibaca: `id` (atau `name` kalau nama device unik), `building`, `space`.
+  Kolom lain diabaikan. Baris dengan `building` kosong dilewati. CSV dengan pemisah `;`
+  (Excel locale Indonesia) juga bisa.
+- Building yang belum ada dibuat otomatis (asset type `building`). Space dibuat sebagai
+  asset type `space` (`SPACE_ASSET_TYPE`) dengan nama `"<Building> - <Space>"`, karena nama asset
+  harus unik di tenant.
+- Device yang pindah gedung: relasi lamanya dilepas dan relasi baru dibuat. Bisa dijalankan
+  berulang kali (idempotent).
+- **Flag di device:** setiap device yang ada di CSV diberi server attribute `building`,
+  `buildingId`, dan `space`. Flag ini bisa dipakai untuk filter atau alias dashboard, FMEA, dan
+  rule engine tanpa query relasi. Sumber kebenaran tetap relasi `Contains`; flag ditulis ulang
+  setiap kali bulk dijalankan.
+- Kalau ada satu error saja di CSV (device tidak ditemukan, nama ganda, baris dobel), **tidak
+  ada yang ditulis**.
+- Setiap `--apply` membuat file `bulk-undo-*.json`. Kalau gagal di tengah jalan, file itu
+  berisi semua langkah yang sudah terjadi.
+- Kenapa tidak lewat SQL langsung ke database TB: TB menyimpan relasi di cache, jadi tulisan
+  SQL tidak terlihat sampai TB di-restart. SQL juga melewati audit log dan rule engine, dan
+  skema tabel bisa berubah antar versi TB. Lewat API, 100 device selesai dalam hitungan detik.
+
 ## API ringkas
 
 Header: `X-Api-Key: <key>`. Spesifikasi lengkap: `GET /building-api/openapi.yaml`
@@ -149,7 +179,7 @@ cp .env.example .env && chmod 600 .env && nano .env
 cp clients.example.json clients.json && chmod 600 clients.json
 npm run hash-key                                  # 1 key per client
 nano clients.json
-npm test                                          # 17 test dengan mock TB
+npm test                                          # 21 test dengan mock TB
 npm run setup -- list                             # cek koneksi TB + building
 pm2 start deploy/ecosystem.config.cjs && pm2 save
 # nginx: tambahkan deploy/nginx-building-api.conf, lalu nginx -t && systemctl reload nginx

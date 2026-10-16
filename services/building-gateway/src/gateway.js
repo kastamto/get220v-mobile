@@ -167,6 +167,9 @@ export class Gateway {
       }
       return names;
     };
+    // space dibuat helper bulk dengan nama "<Building> - <Space>"; tampilkan tanpa prefix
+    const prefix = `${asset.name} - `;
+    for (const sp of spaces.values()) if (sp.name?.startsWith(prefix)) sp.name = sp.name.slice(prefix.length);
     for (const d of devices.values()) d.path = pathOf(d.parentId);
     for (const s of spaces.values()) s.path = pathOf(s.parentId);
     return {
