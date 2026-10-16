@@ -1,0 +1,32 @@
+{
+  "clients": [
+    {
+      "id": "rukita-app",
+      "name": "Rukita Ops App",
+      "keySha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "buildings": ["*"],
+      "scopes": ["read", "telemetry", "history", "attributes", "alarms", "stream", "dashboards"],
+      "embedUserId": "00000000-0000-0000-0000-000000000000",
+      "allowedOrigins": [],
+      "maxStreams": 5
+    },
+    {
+      "id": "bms-amani",
+      "name": "BMS vendor gedung Amani",
+      "keySha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "buildings": ["00000000-0000-0000-0000-0000000000a1"],
+      "scopes": ["read", "telemetry", "alarms", "rpc", "webhooks"],
+      "rpcMethods": ["setRelay", "getStatus"],
+      "webhooks": [
+        {
+          "id": "alarm-feed",
+          "url": "https://bms-vendor.example.com/get220v/webhook",
+          "secret": "GANTI-dengan-secret-acak-minimal-16-karakter",
+          "buildings": ["*"],
+          "events": ["alarm", "telemetry"],
+          "telemetryKeys": ["water_level", "pump_running"]
+        }
+      ]
+    }
+  ]
+}

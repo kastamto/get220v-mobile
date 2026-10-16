@@ -1,0 +1,380 @@
+openapi: 3.0.3
+info:
+  title: Get220v Building Gateway API
+  version: 1.0.0
+  description: |
+    API integrasi per **building** untuk aplikasi luar. Semua akses device, telemetry,
+    alarm, RPC, dan dashboard dibatasi ke gedung yang diizinkan untuk API key tersebut.
+
+    - Auth: header `X-Api-Key` (atau `Authorization: ApiKey <key>`).
+    - Realtime: Server-Sent Events di `/v1/buildings/{buildingId}/stream`.
+    - Push: webhook (dikonfigurasi di server), payload ditandatangani HMAC-SHA256:
+      `X-Get220v-Signature: sha256=hex(HMAC(secret, "<X-Get220v-Timestamp>.<raw body>"))`.
+    - Nilai telemetry dikonversi ke tipe JSON (angka/boolean/objek) dari string TB.
+servers:
+  - url: https://iot.get220v.com/building-api
+security:
+  - ApiKey: []
+tags:
+  - name: Buildings
+  - name: Devices
+  - name: Telemetry
+  - name: Alarms
+  - name: Control
+  - name: Dashboards
+  - name: Realtime
+paths:
+  /health:
+    get:
+      tags: [Buildings]
+      security: []
+      summary: Status service
+      responses:
+        '200': { description: OK }
+  /v1/buildings:
+    get:
+      tags: [Buildings]
+      summary: Daftar building yang boleh diakses client ini
+      description: 'Scope: read'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Building' } }
+        '401': { $ref: '#/components/responses/Error' }
+  /v1/buildings/{buildingId}:
+    parameters: [{ $ref: '#/components/parameters/buildingId' }]
+    get:
+      tags: [Buildings]
+      summary: Detail building (atribut, lantai/ruang, jumlah device)
+      description: 'Scope: read'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BuildingDetail' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /v1/buildings/{buildingId}/devices:
+    parameters: [{ $ref: '#/components/parameters/buildingId' }]
+    get:
+      tags: [Devices]
+      summary: Device di building ini
+      description: 'Scope: read'
+      parameters:
+        - { name: type, in: query, schema: { type: string }, description: Filter device type/profile }
+        - { name: search, in: query, schema: { type: string }, description: Cari di nama/label }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Device' } }
+  /v1/buildings/{buildingId}/devices/{deviceId}:
+    parameters: [{ $ref: '#/components/parameters/buildingId' }, { $ref: '#/components/parameters/deviceId' }]
+    get:
+      tags: [Devices]
+      summary: Detail device + daftar key telemetry + nilai terakhir
+      description: 'Scope: read'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeviceDetail' }
+        '404': { $ref: '#/components/responses/Error' }
+  /v1/buildings/{buildingId}/telemetry/latest:
+    parameters: [{ $ref: '#/components/parameters/buildingId' }]
+    get:
+      tags: [Telemetry]
+      summary: Snapshot nilai terakhir semua device di building
+      description: 'Scope: telemetry'
+      parameters: [{ $ref: '#/components/parameters/keys' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        name: { type: string }
+                        path: { type: array, items: { type: string } }
+                        latest: { $ref: '#/components/schemas/LatestValues' }
+                        error: { type: string, enum: [unavailable] }
+  /v1/buildings/{buildingId}/devices/{deviceId}/telemetry/latest:
+    parameters: [{ $ref: '#/components/parameters/buildingId' }, { $ref: '#/components/parameters/deviceId' }]
+    get:
+      tags: [Telemetry]
+      summary: Nilai terakhir telemetry device
+      description: 'Scope: telemetry'
+      parameters: [{ $ref: '#/components/parameters/keys' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LatestValues' }
+  /v1/buildings/{buildingId}/devices/{deviceId}/telemetry:
+    parameters: [{ $ref: '#/components/parameters/buildingId' }, { $ref: '#/components/parameters/deviceId' }]
+    get:
+      tags: [Telemetry]
+      summary: Histori telemetry (maks 92 hari per request)
+      description: 'Scope: history'
+      parameters:
+        - { name: keys, in: query, required: true, schema: { type: string }, description: 'Maks 20, pisahkan koma' }
+        - { name: startTs, in: query, schema: { type: integer, format: int64 }, description: 'epoch ms, default endTs - 24 jam' }
+        - { name: endTs, in: query, schema: { type: integer, format: int64 }, description: 'epoch ms, default sekarang' }
+        - { name: agg, in: query, schema: { type: string, enum: [NONE, AVG, MIN, MAX, SUM, COUNT], default: NONE } }
+        - { name: interval, in: query, schema: { type: integer, default: 3600000 }, description: 'ms, untuk agg selain NONE' }
+        - { name: limit, in: query, schema: { type: integer, default: 1000, maximum: 50000 } }
+        - { name: orderBy, in: query, schema: { type: string, enum: [ASC, DESC], default: ASC } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  startTs: { type: integer }
+                  endTs: { type: integer }
+                  agg: { type: string }
+                  data:
+                    type: object
+                    additionalProperties:
+                      type: array
+                      items: { $ref: '#/components/schemas/TsValue' }
+        '400': { $ref: '#/components/responses/Error' }
+  /v1/buildings/{buildingId}/devices/{deviceId}/attributes:
+    parameters: [{ $ref: '#/components/parameters/buildingId' }, { $ref: '#/components/parameters/deviceId' }]
+    get:
+      tags: [Devices]
+      summary: Attribute device
+      description: 'Scope: attributes'
+      parameters:
+        - { name: scope, in: query, schema: { type: string, enum: [CLIENT_SCOPE, SHARED_SCOPE, SERVER_SCOPE], default: CLIENT_SCOPE } }
+        - { $ref: '#/components/parameters/keys' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LatestValues' }
+  /v1/buildings/{buildingId}/alarms:
+    parameters: [{ $ref: '#/components/parameters/buildingId' }]
+    get:
+      tags: [Alarms]
+      summary: Alarm device di building ini
+      description: 'Scope: alarms'
+      parameters:
+        - { name: status, in: query, schema: { type: string, default: ACTIVE }, description: 'ACTIVE, CLEARED, ACK, UNACK (koma)' }
+        - { name: limit, in: query, schema: { type: integer, default: 100, maximum: 500 } }
+        - { name: days, in: query, schema: { type: integer, default: 30, maximum: 365 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Alarm' } }
+  /v1/buildings/{buildingId}/devices/{deviceId}/rpc:
+    parameters: [{ $ref: '#/components/parameters/buildingId' }, { $ref: '#/components/parameters/deviceId' }]
+    post:
+      tags: [Control]
+      summary: Kirim perintah RPC ke device
+      description: 'Scope: rpc. Method bisa dibatasi per client (rpcMethods).'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [method]
+              properties:
+                method: { type: string, example: setRelay }
+                params: { type: object, example: { on: true } }
+                timeout: { type: integer, minimum: 1000, maximum: 30000, default: 10000 }
+                oneway: { type: boolean, default: false }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  response: {}
+        '403': { $ref: '#/components/responses/Error' }
+        '504': { $ref: '#/components/responses/Error' }
+  /v1/buildings/{buildingId}/dashboards:
+    parameters: [{ $ref: '#/components/parameters/buildingId' }]
+    get:
+      tags: [Dashboards]
+      summary: Dashboard yang terdaftar untuk building ini
+      description: 'Scope: dashboards'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        title: { type: string }
+                        stateId: { type: string, nullable: true }
+  /v1/buildings/{buildingId}/dashboards/{dashboardId}/embed:
+    parameters:
+      - { $ref: '#/components/parameters/buildingId' }
+      - { name: dashboardId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Dashboards]
+      summary: Buat link embed (iframe/WebView) sekali pakai, sudah ter-scope ke building/device
+      description: 'Scope: dashboards. embedUrl berlaku TICKET_TTL_SEC (default 60 dtk) dan hanya bisa dibuka sekali.'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                deviceId: { type: string, format: uuid, description: 'Opsional: buka dashboard untuk 1 device' }
+                stateId: { type: string }
+                hideToolbar: { type: boolean, default: true }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  embedUrl: { type: string, format: uri }
+                  ticketExpiresAt: { type: string, format: date-time }
+                  sessionExpiresAt: { type: string, format: date-time, nullable: true }
+                  dashboard: { type: object }
+                  entity: { type: object }
+  /v1/buildings/{buildingId}/stream:
+    parameters: [{ $ref: '#/components/parameters/buildingId' }]
+    get:
+      tags: [Realtime]
+      summary: Stream telemetry realtime (Server-Sent Events)
+      description: |
+        Scope: stream. Event: `ready` lalu `telemetry` setiap ada data baru
+        (`{buildingId, deviceId, deviceName, values:{key:{ts,value}}}`). Heartbeat komentar tiap 25 detik.
+      parameters:
+        - { $ref: '#/components/parameters/keys' }
+        - { name: devices, in: query, schema: { type: string }, description: 'Subset device ID (koma)' }
+      responses:
+        '200':
+          description: text/event-stream
+          content:
+            text/event-stream:
+              schema: { type: string }
+components:
+  securitySchemes:
+    ApiKey:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+  parameters:
+    buildingId: { name: buildingId, in: path, required: true, schema: { type: string, format: uuid } }
+    deviceId: { name: deviceId, in: path, required: true, schema: { type: string, format: uuid } }
+    keys: { name: keys, in: query, schema: { type: string }, description: 'Key dipisah koma; kosong = semua' }
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string }
+  schemas:
+    TsValue:
+      type: object
+      properties:
+        ts: { type: integer, format: int64 }
+        value: {}
+    LatestValues:
+      type: object
+      additionalProperties: { $ref: '#/components/schemas/TsValue' }
+    Building:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        label: { type: string, nullable: true }
+        type: { type: string }
+    BuildingDetail:
+      allOf:
+        - $ref: '#/components/schemas/Building'
+        - type: object
+          properties:
+            attributes: { type: object, additionalProperties: true }
+            deviceCount: { type: integer }
+            spaces:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  name: { type: string }
+                  parentId: { type: string, format: uuid }
+                  path: { type: array, items: { type: string } }
+    Device:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        label: { type: string, nullable: true }
+        type: { type: string }
+        active: { type: boolean, nullable: true }
+        lastActivityTime: { type: integer, nullable: true }
+        spaceId: { type: string, format: uuid, nullable: true }
+        path: { type: array, items: { type: string }, description: 'Lantai/ruang dari atas ke bawah' }
+    DeviceDetail:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        label: { type: string, nullable: true }
+        type: { type: string }
+        path: { type: array, items: { type: string } }
+        telemetryKeys: { type: array, items: { type: string } }
+        latest: { $ref: '#/components/schemas/LatestValues' }
+    Alarm:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string }
+        severity: { type: string, enum: [CRITICAL, MAJOR, MINOR, WARNING, INDETERMINATE] }
+        status: { type: string }
+        acknowledged: { type: boolean, nullable: true }
+        cleared: { type: boolean, nullable: true }
+        deviceId: { type: string, format: uuid }
+        deviceName: { type: string, nullable: true }
+        createdTime: { type: integer }
+        details: { nullable: true }
