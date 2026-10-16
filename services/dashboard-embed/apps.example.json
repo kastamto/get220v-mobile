@@ -1,0 +1,23 @@
+{
+  "apps": [
+    {
+      "id": "rukita-portal",
+      "name": "Rukita Ops Portal",
+      "keySha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "mode": "user",
+      "tbUserId": "00000000-0000-0000-0000-000000000000",
+      "allowedDashboards": ["*"],
+      "allowedOrigins": ["https://portal.rukita.co"],
+      "includeRefreshToken": false,
+      "defaultParams": { "hideToolbar": true }
+    },
+    {
+      "id": "public-display",
+      "name": "Layar lobby (dashboard public)",
+      "keySha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "mode": "public",
+      "allowedDashboards": ["00000000-0000-0000-0000-000000000001"],
+      "allowedOrigins": []
+    }
+  ]
+}

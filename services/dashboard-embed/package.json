@@ -1,0 +1,17 @@
+{
+  "name": "get220v-dashboard-embed",
+  "version": "1.0.0",
+  "description": "Service embed dashboard ThingsBoard untuk aplikasi lain (web/mobile) tanpa membocorkan kredensial TB ke client",
+  "private": true,
+  "type": "module",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=20.12"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test test/*.test.js",
+    "hash-key": "node scripts/hash-key.mjs"
+  },
+  "license": "UNLICENSED"
+}
