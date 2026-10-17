@@ -62,6 +62,7 @@ export function createGatewayServer(config, deps = {}) {
   const streams = new Map(); // clientId -> count
   const tickets = new Map();
   let openapi = null;
+  let playground = null;
 
   const sweep = setInterval(() => {
     const t = now();
@@ -244,6 +245,21 @@ export function createGatewayServer(config, deps = {}) {
       openapi ??= readFileSync(resolve(ROOT, 'openapi.yaml'), 'utf8');
       res.writeHead(200, { 'Content-Type': 'application/yaml; charset=utf-8', 'Access-Control-Allow-Origin': '*' });
       return res.end(openapi);
+    }
+    if (req.method === 'GET' && (path === '/playground' || path === '/playground/')) {
+      // halaman uji interaktif; tidak berisi rahasia (API key diketik user di browser)
+      playground ??= readFileSync(resolve(ROOT, 'public/playground.html'), 'utf8');
+      const frames = [...new Set([new URL(config.publicBaseUrl).origin, new URL(config.tbPublicUrl).origin])].join(' ');
+      res.writeHead(200, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-cache',
+        'Content-Security-Policy':
+          `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; ` +
+          `img-src 'self' data:; frame-src 'self' ${frames}; frame-ancestors 'none'; base-uri 'none'; form-action 'none'`,
+        'Referrer-Policy': 'no-referrer',
+        'X-Content-Type-Options': 'nosniff',
+      });
+      return res.end(playground);
     }
     const tm = path.match(/^\/e\/([A-Za-z0-9_-]{32})$/);
     if (req.method === 'GET' && tm) return consumeTicket(res, tm[1]);

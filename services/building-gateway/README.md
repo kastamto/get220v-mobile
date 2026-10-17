@@ -79,6 +79,25 @@ npm run setup -- undo --file bulk-undo-<waktu>.json --apply   # kalau perlu diba
   SQL tidak terlihat sampai TB di-restart. SQL juga melewati audit log dan rule engine, dan
   skema tabel bisa berubah antar versi TB. Lewat API, 100 device selesai dalam hitungan detik.
 
+## Playground (uji langsung di browser)
+
+`https://iot.get220v.com/building-api/playground`: halaman uji interaktif yang memakai API
+ini dengan data asli. Masukkan API key, lalu:
+
+- **Building & Device**: atribut gedung, lantai/ruang, tabel device (online/offline, aktivitas
+  terakhir), dan snapshot nilai terakhir semua device.
+- **Detail Device**: nilai terakhir, grafik histori per key (1 jam sampai 30 hari, dengan
+  agregasi), dan attribute.
+- **Live (SSE)**: tile yang ter-update realtime dari `/stream`, plus event mentahnya.
+- **Alarm**: alarm aktif/cleared dengan severity.
+- **Dashboard Embed**: preview iframe dari `embedUrl`.
+- **Log API**: setiap request dan response beserta perintah `curl`-nya (key ditulis `$KEY`),
+  siap disalin ke guide integrasi.
+
+Halaman ini statis, tidak berisi rahasia, dan tidak memuat script dari luar. CSP-nya hanya
+mengizinkan koneksi ke API di origin yang sama dan tidak bisa di-iframe. API key disimpan
+di `sessionStorage` tab itu saja.
+
 ## API ringkas
 
 Header: `X-Api-Key: <key>`. Spesifikasi lengkap: `GET /building-api/openapi.yaml`
@@ -179,7 +198,7 @@ cp .env.example .env && chmod 600 .env && nano .env
 cp clients.example.json clients.json && chmod 600 clients.json
 npm run hash-key                                  # 1 key per client
 nano clients.json
-npm test                                          # 21 test dengan mock TB
+npm test                                          # test dengan mock TB
 npm run setup -- list                             # cek koneksi TB + building
 pm2 start deploy/ecosystem.config.cjs && pm2 save
 # nginx: tambahkan deploy/nginx-building-api.conf, lalu nginx -t && systemctl reload nginx
