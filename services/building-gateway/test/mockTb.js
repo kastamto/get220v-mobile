@@ -52,6 +52,10 @@ export async function startMockTb() {
   state.edges = edges;
   state.assets = assets;
   state.serverAttrs = {}; // deviceId -> {key: value}
+  // TB sungguhan menyusuri relasi "Contains" secara rekursif dari entity APAPUN (asset atau
+  // device) selama entityTypes filter mengizinkannya, bukan cuma dari asset — makanya relasi
+  // device->device lama ikut ketarik kalau tidak difilter di sisi client. Tiru itu di sini.
+  const entityType = (id) => (assets[id] ? 'ASSET' : 'DEVICE');
   const relationsFrom = (root, maxLevel) => {
     const out = [];
     let frontier = [root];
@@ -60,8 +64,8 @@ export async function startMockTb() {
       const next = [];
       for (const f of frontier) {
         for (const e of edges.filter((x) => x.from === f)) {
-          out.push({ from: { id: e.from, entityType: 'ASSET' }, to: { id: e.to, entityType: e.toType }, type: 'Contains', toName: nameOf(e.to) });
-          if (e.toType === 'ASSET' && !seen.has(e.to)) {
+          out.push({ from: { id: e.from, entityType: entityType(e.from) }, to: { id: e.to, entityType: e.toType }, type: 'Contains', toName: nameOf(e.to) });
+          if (!seen.has(e.to)) {
             seen.add(e.to);
             next.push(e.to);
           }

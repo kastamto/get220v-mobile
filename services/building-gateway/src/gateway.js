@@ -152,6 +152,11 @@ export class Gateway {
     const spaces = new Map();
     const devices = new Map();
     for (const r of rels ?? []) {
+      // relasi "Contains" dari DEVICE (bukan ASSET) bukan bagian topologi building/space —
+      // TB tetap menyusurinya karena filter entityTypes tidak membatasi hop rekursif, dan kalau
+      // ikut dipakai, device lama di gedung lain yang punya relasi semacam ini bisa "bocor" ke
+      // gedung ini. Abaikan.
+      if (r.from.entityType !== 'ASSET') continue;
       const node = { id: r.to.id, name: r.toName ?? null, parentId: r.from.id };
       if (r.to.entityType === 'DEVICE' && !devices.has(node.id)) devices.set(node.id, node);
       else if (r.to.entityType === 'ASSET' && !spaces.has(node.id) && node.id !== buildingId) spaces.set(node.id, node);

@@ -114,6 +114,23 @@ test('device dari building lain ditolak walau UUID valid', async () => {
   assert.equal((await get(`/v1/buildings/${ID.B1}/devices/${ID.DEV3}/telemetry/latest`)).status, 404);
 });
 
+test('relasi "Contains" device->device tidak ikut menarik device lain ke topologi building', async () => {
+  // Data produksi nyata punya relasi Contains lama device->device yang tidak terkait topologi
+  // building (dari fitur lain). Simulasikan: DEV2 (device B1) punya relasi Contains ke DEV3
+  // (device B2 sesungguhnya). Topologi B1 harus tetap cuma 2 device — DEV3 tidak boleh "bocor"
+  // masuk lewat jalur device->device ini.
+  tb.state.edges.push({ from: ID.DEV2, to: ID.DEV3, toType: 'DEVICE' });
+  try {
+    const b = await (await get(`/v1/buildings/${ID.B1}`)).json();
+    assert.equal(b.deviceCount, 2);
+    const r = await (await get(`/v1/buildings/${ID.B1}/devices`)).json();
+    assert.deepEqual(r.data.map((d) => d.id).sort(), [ID.DEV1, ID.DEV2].sort());
+    assert.ok(!r.data.some((d) => d.id === ID.DEV3));
+  } finally {
+    tb.state.edges.pop();
+  }
+});
+
 test('telemetry latest: nilai dikonversi ke tipe JSON', async () => {
   const r = await (await get(`/v1/buildings/${ID.B1}/devices/${ID.DEV1}/telemetry/latest`)).json();
   assert.deepEqual(r, { current_a: { ts: 10, value: 2.5 }, running: { ts: 10, value: true }, mode: { ts: 10, value: 'auto' } });

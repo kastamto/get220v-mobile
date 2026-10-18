@@ -72,10 +72,15 @@ async function resolveBuilding(ref) {
 }
 
 async function relations(bid) {
-  return tb.asTenant('POST', '/api/relations/info', {
+  const rels = await tb.asTenant('POST', '/api/relations/info', {
     parameters: { rootId: bid, rootType: 'ASSET', direction: 'FROM', relationTypeGroup: 'COMMON', maxLevel: 5, fetchLastLevelOnly: false },
     filters: [{ relationType: REL, entityTypes: ['ASSET', 'DEVICE'] }],
   });
+  // relasi "Contains" dari DEVICE (bukan ASSET) bukan bagian topologi building/space — TB tetap
+  // menyusurinya karena filter entityTypes tidak membatasi hop rekursif. Device lama yang punya
+  // relasi semacam ini (ditemukan di data produksi, tidak terkait fitur ini) bisa bikin device lain
+  // ikut terhitung / ter-link ke building yang salah kalau tidak difilter di sini.
+  return rels.filter((r) => r.from.entityType === 'ASSET');
 }
 
 // Asset space dibuat dengan nama "<Building> - <Space>" (nama asset TB unik per tenant); bandingkan tanpa prefix.
@@ -117,7 +122,7 @@ const commands = {
     if (!all.length) console.log(`Belum ada asset type "${TYPE}". Buat dengan: npm run setup -- create --name "..." --apply`);
     for (const b of all) {
       const rels = await relations(b.id.id);
-      const n = rels.filter((r) => r.to.entityType === 'DEVICE').length;
+      const n = new Set(rels.filter((r) => r.to.entityType === 'DEVICE').map((r) => r.to.id)).size;
       console.log(`${b.id.id}  ${b.name.padEnd(32)} ${String(n).padStart(4)} device`);
     }
     const devs = await pageAll('/api/tenant/deviceInfos');
