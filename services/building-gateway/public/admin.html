@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>API Key Manager</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f4f4f2; --surface-1: #fcfcfb; --surface-2: #efefec; --border: #dcdcd7; --grid: #e6e6e1;
+    --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #77766f;
+    --accent: #2a78d6; --accent-ink: #fff; --good: #0ca30c; --warning: #fab219; --critical: #d03b3b;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --bg: #121211; --surface-1: #1a1a19; --surface-2: #232321; --border: #33332f; --grid: #2b2b28;
+      --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8f8e85; --accent: #3987e5;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #121211; --surface-1: #1a1a19; --surface-2: #232321; --border: #33332f; --grid: #2b2b28;
+    --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8f8e85; --accent: #3987e5;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text-primary); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  button, input, select { font: inherit; color: inherit; }
+  header { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 12px 16px; background: var(--surface-1); border-bottom: 1px solid var(--border); }
+  header h1 { font-size: 16px; margin: 0; }
+  .grow { flex: 1; }
+  .muted { color: var(--text-muted); } .secondary { color: var(--text-secondary); }
+  main { padding: 16px; max-width: 1200px; margin: 0 auto; }
+  .btn { background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; cursor: pointer; white-space: nowrap; }
+  .btn:hover { border-color: var(--text-muted); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .btn.danger { color: var(--critical); }
+  .btn.small { padding: 2px 8px; font-size: 12px; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 14px; }
+  .card h2 { font-size: 14px; margin: 0 0 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: var(--text-secondary); font-weight: 600; border-bottom: 1px solid var(--border); padding: 6px 8px; white-space: nowrap; }
+  td { border-bottom: 1px solid var(--grid); padding: 8px; vertical-align: top; }
+  .pill { display: inline-block; font-size: 11px; background: var(--surface-2); border-radius: 10px; padding: 1px 8px; margin: 1px 2px 1px 0; color: var(--text-secondary); }
+  .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .badge::before { content: ""; width: 9px; height: 9px; border-radius: 2px; background: var(--c); }
+  code, .mono { font-family: var(--mono); font-size: 12px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 4px; }
+  .empty { color: var(--text-muted); padding: 24px; text-align: center; }
+  .err { color: var(--critical); }
+  .note { font-size: 12px; color: var(--text-secondary); background: var(--surface-2); border-radius: 6px; padding: 8px 10px; margin-bottom: 10px; }
+  dialog { border: 1px solid var(--border); border-radius: 12px; padding: 0; background: var(--surface-1); color: var(--text-primary); width: min(640px, calc(100vw - 32px)); }
+  dialog::backdrop { background: rgba(0,0,0,.35); }
+  .dlg-head { padding: 14px 16px; border-bottom: 1px solid var(--border); font-weight: 600; }
+  .dlg-body { padding: 16px; max-height: 70vh; overflow: auto; }
+  .dlg-foot { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; }
+  label.f { display: block; font-size: 12px; color: var(--text-secondary); margin: 12px 0 4px; font-weight: 600; }
+  label.f:first-child { margin-top: 0; }
+  input[type=text], input[type=search] { width: 100%; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 7px 9px; }
+  .checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 4px 12px; max-height: 220px; overflow: auto; padding: 6px; border: 1px solid var(--border); border-radius: 6px; }
+  .checks label { display: flex; gap: 6px; align-items: center; font-size: 13px; cursor: pointer; }
+  .hint { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+  .keybox { display: flex; gap: 8px; align-items: center; background: var(--surface-2); border: 1px dashed var(--accent); border-radius: 8px; padding: 10px; margin: 8px 0; }
+  .keybox code { flex: 1; font-size: 13px; overflow-wrap: anywhere; user-select: all; }
+  .warn { color: var(--text-primary); font-size: 13px; }
+  .warn b { color: var(--critical); }
+  @media (max-width: 720px) { main { padding: 12px 16px; } .hide-sm { display: none; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>API Key Manager</h1>
+  <span class="muted" id="who"></span>
+  <span class="grow"></span>
+  <button class="btn" id="reload">Muat ulang</button>
+  <button class="btn primary" id="add" disabled>+ Client baru</button>
+</header>
+<main>
+  <div class="note">Setiap client = satu aplikasi luar. API key hanya ditampilkan <b>sekali</b> saat dibuat atau dirotasi; server hanya menyimpan hash-nya. Perubahan berlaku ≤ 30 detik tanpa restart. Client dari <code>clients.json</code> (termasuk webhook) hanya bisa diubah di server.</div>
+  <div class="card"><div id="list"><div class="empty">Memuat…</div></div></div>
+</main>
+
+<dialog id="dlg">
+  <div class="dlg-head" id="dlg-title">Client</div>
+  <div class="dlg-body" id="dlg-body"></div>
+  <div class="dlg-foot" id="dlg-foot"></div>
+</dialog>
+
+<script>
+(() => {
+  'use strict';
+  const BASE = location.pathname.replace(/\/admin\/?$/, '');
+  const $ = (s) => document.querySelector(s);
+  const el = (tag, props = {}, ...kids) => {
+    const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(props)) {
+      if (k === 'class') n.className = v;
+      else if (k === 'style') n.style.cssText = v;
+      else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
+      else if (v !== undefined && v !== null && v !== false) n.setAttribute(k, v === true ? '' : v);
+    }
+    for (const c of kids.flat()) if (c !== null && c !== undefined && c !== false) n.append(c instanceof Node ? c : document.createTextNode(String(c)));
+    return n;
+  };
+  const SCOPE_INFO = {
+    read: 'building & device', telemetry: 'nilai terakhir', history: 'histori', attributes: 'attribute',
+    alarms: 'alarm', stream: 'realtime SSE', dashboards: 'embed dashboard', rpc: 'kontrol device (RPC)',
+  };
+  const fmtDate = (ts) => (ts ? new Date(Number(ts)).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }) : '—');
+  let meta = { buildings: [], scopes: [] };
+  let clients = [];
+
+  // sesi login ThingsBoard di origin yang sama (halaman ini dibuka dari dashboard TB)
+  function tbToken() {
+    try { return localStorage.getItem('jwt_token'); } catch { return null; }
+  }
+
+  async function api(method, path, body) {
+    const token = tbToken();
+    if (!token) throw Object.assign(new Error('Belum login ThingsBoard. Buka halaman ini dari dashboard di iot.get220v.com.'), { status: 401 });
+    const r = await fetch(BASE + path, {
+      method,
+      headers: { 'X-Authorization': `Bearer ${token}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw Object.assign(new Error(data.error || `HTTP ${r.status}`), { status: r.status });
+    return data;
+  }
+
+  function showError(e) {
+    const hint = e.status === 401 ? ' Login ulang di ThingsBoard, lalu klik Muat ulang.' : e.status === 403 ? ' Halaman ini hanya untuk tenant admin.' : '';
+    $('#list').replaceChildren(el('div', { class: 'empty err' }, e.message + hint));
+  }
+
+  async function load() {
+    $('#list').replaceChildren(el('div', { class: 'empty' }, 'Memuat…'));
+    try {
+      const [me, m, c] = await Promise.all([api('GET', '/admin/v1/me'), api('GET', '/admin/v1/meta'), api('GET', '/admin/v1/clients')]);
+      $('#who').textContent = `· ${me.name} (${me.email})`;
+      meta = m; clients = c.data;
+      $('#add').disabled = false;
+      render();
+    } catch (e) { showError(e); }
+  }
+
+  const bName = (id) => (id === '*' ? 'Semua gedung' : meta.buildings.find((b) => b.id === id)?.name ?? id.slice(0, 8) + '…');
+
+  function render() {
+    if (!clients.length) return $('#list').replaceChildren(el('div', { class: 'empty' }, 'Belum ada client. Klik "+ Client baru".'));
+    const rows = clients.map((c) => {
+      const tb = c.source === 'thingsboard';
+      const status = !c.enabled ? ['var(--text-muted)', 'nonaktif'] : ['var(--good)', 'aktif'];
+      const b = c.buildings.includes('*') ? [el('span', { class: 'pill' }, 'Semua gedung')]
+        : [...c.buildings.slice(0, 3).map((id) => el('span', { class: 'pill' }, bName(id))), c.buildings.length > 3 ? el('span', { class: 'pill' }, `+${c.buildings.length - 3}`) : null];
+      return el('tr', {},
+        el('td', {}, el('div', { style: 'font-weight:600' }, c.name), el('div', { class: 'mono muted' }, c.id)),
+        el('td', {}, el('span', { class: 'badge', style: `--c:${status[0]}` }, status[1])),
+        el('td', {}, b),
+        el('td', {}, c.scopes.map((s) => el('span', { class: 'pill' }, s))),
+        el('td', { class: 'hide-sm' }, tb ? el('div', {}, el('code', {}, c.keyHint ? `${c.keyHint}…` : '—'), el('div', { class: 'muted', style: 'font-size:12px' }, `diganti ${fmtDate(c.keyRotatedAt)}`)) : el('span', { class: 'muted' }, 'clients.json')),
+        el('td', {}, tb ? el('div', { class: 'actions' },
+          el('button', { class: 'btn small', onclick: () => openEditor(c) }, 'Ubah'),
+          el('button', { class: 'btn small', onclick: () => rotate(c) }, 'Rotasi key'),
+          el('button', { class: 'btn small', onclick: () => toggle(c) }, c.enabled ? 'Nonaktifkan' : 'Aktifkan'),
+          el('button', { class: 'btn small danger', onclick: () => remove(c) }, 'Hapus'))
+          : el('span', { class: 'muted', style: 'font-size:12px' }, `dikelola di server${c.webhooks ? ` · ${c.webhooks} webhook` : ''}`)));
+    });
+    $('#list').replaceChildren(el('div', { style: 'overflow-x:auto' }, el('table', {},
+      el('thead', {}, el('tr', {}, ['Client', 'Status', 'Gedung', 'Scope', 'Key', ''].map((h, i) => el('th', { class: i === 4 ? 'hide-sm' : '' }, h)))),
+      el('tbody', {}, rows))));
+  }
+
+  // ---------- dialog ----------
+  const dlg = $('#dlg');
+  function openDialog(title, body, buttons) {
+    $('#dlg-title').textContent = title;
+    $('#dlg-body').replaceChildren(...body);
+    $('#dlg-foot').replaceChildren(...buttons);
+    if (!dlg.open) dlg.showModal();
+  }
+  const close = () => dlg.close();
+
+  function showKey(title, res) {
+    let copied = false;
+    const copyBtn = el('button', { class: 'btn', onclick: async () => {
+      try { await navigator.clipboard.writeText(res.key); copied = true; copyBtn.textContent = 'Tersalin ✓'; } catch { copyBtn.textContent = 'Salin manual'; }
+    } }, 'Salin');
+    openDialog(title, [
+      el('p', { class: 'warn' }, 'Ini satu-satunya kesempatan melihat key ini. ', el('b', {}, 'Salin sekarang'), ' dan kirim ke developer lewat kanal aman (password manager), bukan grup chat.'),
+      el('div', { class: 'keybox' }, el('code', {}, res.key), copyBtn),
+      el('p', { class: 'hint' }, `Client: ${res.id}. Key lama (kalau ada) sudah tidak berlaku.`),
+    ], [el('button', { class: 'btn primary', onclick: () => {
+      if (!copied && !confirm('Key belum disalin. Tutup dan key hilang?')) return;
+      close(); load();
+    } }, 'Selesai')]);
+  }
+
+  function openEditor(c) {
+    const creating = !c;
+    const idIn = el('input', { type: 'text', value: c?.id ?? '', placeholder: 'mis. portal-rukita', disabled: !creating, autocomplete: 'off' });
+    const nameIn = el('input', { type: 'text', value: c?.name ?? '', placeholder: 'mis. Portal Rukita', autocomplete: 'off' });
+    const all = el('input', { type: 'checkbox', checked: c?.buildings.includes('*') ?? false });
+    const bSearch = el('input', { type: 'search', placeholder: 'Cari gedung…' });
+    const bChecks = meta.buildings.map((b) => ({ b, box: el('input', { type: 'checkbox', checked: c?.buildings.includes(b.id) ?? false }) }));
+    const bGrid = el('div', { class: 'checks' }, bChecks.map(({ b, box }) => el('label', { 'data-name': b.name.toLowerCase() }, box, b.name)));
+    const syncAll = () => { bGrid.style.opacity = all.checked ? 0.45 : 1; for (const { box } of bChecks) box.disabled = all.checked; };
+    all.onchange = syncAll; syncAll();
+    bSearch.oninput = () => { const q = bSearch.value.toLowerCase(); for (const l of bGrid.children) l.style.display = l.dataset.name.includes(q) ? '' : 'none'; };
+    const sChecks = meta.scopes.map((s) => ({ s, box: el('input', { type: 'checkbox', checked: c ? c.scopes.includes(s) : ['read', 'telemetry'].includes(s) }) }));
+    const rpcIn = el('input', { type: 'text', value: (c?.rpcMethods ?? []).join(', '), placeholder: 'mis. setRelay, getStatus (kosong = semua method)' });
+    const embedIn = el('input', { type: 'text', value: c?.embedUserId ?? '', placeholder: 'UUID customer user TB read-only (untuk embed dashboard)' });
+    const errBox = el('div', { class: 'err', style: 'margin-top:10px' });
+
+    const save = el('button', { class: 'btn primary', onclick: async () => {
+      errBox.textContent = '';
+      const body = {
+        name: nameIn.value.trim(),
+        buildings: all.checked ? ['*'] : bChecks.filter((x) => x.box.checked).map((x) => x.b.id),
+        scopes: sChecks.filter((x) => x.box.checked).map((x) => x.s),
+        rpcMethods: rpcIn.value.split(',').map((x) => x.trim()).filter(Boolean),
+        embedUserId: embedIn.value.trim(),
+      };
+      if (creating) body.id = idIn.value.trim().toLowerCase();
+      if (!body.buildings.length) return (errBox.textContent = 'Pilih minimal satu gedung.');
+      if (!body.scopes.length) return (errBox.textContent = 'Pilih minimal satu scope.');
+      save.disabled = true;
+      try {
+        if (creating) showKey('API key dibuat', await api('POST', '/admin/v1/clients', body));
+        else { await api('PATCH', `/admin/v1/clients/${c.id}`, body); close(); load(); }
+      } catch (e) { errBox.textContent = e.message; save.disabled = false; }
+    } }, creating ? 'Buat & tampilkan key' : 'Simpan');
+
+    openDialog(creating ? 'Client baru' : `Ubah ${c.name}`, [
+      el('label', { class: 'f' }, 'ID client'), idIn, creating ? el('div', { class: 'hint' }, 'Huruf kecil, angka, - atau _. Tidak bisa diubah setelah dibuat.') : null,
+      el('label', { class: 'f' }, 'Nama aplikasi'), nameIn,
+      el('label', { class: 'f' }, 'Gedung yang boleh diakses'),
+      el('label', { style: 'display:flex;gap:6px;align-items:center;margin-bottom:6px;cursor:pointer' }, all, 'Semua gedung (termasuk gedung baru nanti)'),
+      bSearch, el('div', { style: 'height:6px' }), bGrid,
+      el('label', { class: 'f' }, 'Scope'),
+      el('div', { class: 'checks', style: 'max-height:none' }, sChecks.map(({ s, box }) => el('label', {}, box, s, el('span', { class: 'muted', style: 'font-size:11px' }, ` · ${SCOPE_INFO[s] ?? ''}`)))),
+      el('label', { class: 'f' }, 'Method RPC yang diizinkan (scope rpc)'), rpcIn,
+      el('label', { class: 'f' }, 'Embed user ID (scope dashboards)'), embedIn,
+      errBox,
+    ], [el('button', { class: 'btn', onclick: close }, 'Batal'), save]);
+  }
+
+  async function rotate(c) {
+    if (!confirm(`Rotasi key "${c.name}"? Key lama langsung tidak berlaku dan aplikasi harus memakai key baru.`)) return;
+    try { showKey('Key baru', await api('POST', `/admin/v1/clients/${c.id}/rotate`)); } catch (e) { alert(e.message); }
+  }
+  async function toggle(c) {
+    if (c.enabled && !confirm(`Nonaktifkan "${c.name}"? Aplikasi itu langsung ditolak (401) sampai diaktifkan lagi.`)) return;
+    try { await api('PATCH', `/admin/v1/clients/${c.id}`, { enabled: !c.enabled }); load(); } catch (e) { alert(e.message); }
+  }
+  async function remove(c) {
+    const typed = prompt(`Hapus permanen client "${c.name}"? Ketik ID-nya (${c.id}) untuk konfirmasi.`);
+    if (typed !== c.id) return;
+    try { await api('DELETE', `/admin/v1/clients/${c.id}`); load(); } catch (e) { alert(e.message); }
+  }
+
+  $('#add').onclick = () => openEditor(null);
+  $('#reload').onclick = load;
+  load();
+})();
+</script>
+</body>
+</html>

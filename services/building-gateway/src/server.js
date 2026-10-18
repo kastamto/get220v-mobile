@@ -3,11 +3,12 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { TbClient, TbError } from './tbClient.js';
+import { TbClient, TbError, decodeJwt } from './tbClient.js';
+import { ClientStore, StoreError } from './clientStore.js';
 import { Gateway, ApiError, parseKeys } from './gateway.js';
 import { RealtimeHub } from './realtime.js';
 import { WebhookDispatcher } from './webhooks.js';
-import { UUID_RE } from './config.js';
+import { UUID_RE, SCOPES } from './config.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const MAX_BODY = 16 * 1024;
@@ -56,13 +57,15 @@ export function createGatewayServer(config, deps = {}) {
   const hub = deps.hub ?? new RealtimeHub({ wsUrl: config.tbWsUrl, getToken: () => tb.tenantToken(), WebSocketImpl: deps.WebSocketImpl, log });
   const webhooks = new WebhookDispatcher({ gateway, hub, clients: config.clients, config, fetchImpl: deps.webhookFetch, log, now });
 
-  const clients = config.clients.map((c) => ({ ...c, keyHash: Buffer.from(c.keySha256, 'hex') }));
-  const allOrigins = new Set(clients.flatMap((c) => c.allowedOrigins));
+  const store = deps.clientStore ?? new ClientStore({ tb, fileClients: config.clients, ttlMs: (config.clientCacheSec ?? 30) * 1000, log, now });
+  const allOrigins = new Set(config.clients.flatMap((c) => c.allowedOrigins));
+  const adminSessions = new Map(); // sha256(token TB) -> { user, exp }
   const rate = new Map();
   const streams = new Map(); // clientId -> count
   const tickets = new Map();
   let openapi = null;
   let playground = null;
+  let adminPage = null;
 
   const sweep = setInterval(() => {
     const t = now();
@@ -70,18 +73,72 @@ export function createGatewayServer(config, deps = {}) {
   }, 30_000);
   sweep.unref();
 
-  function authenticate(req) {
+  async function authenticate(req) {
     const key = req.headers['x-api-key'] || (req.headers.authorization ?? '').replace(/^(ApiKey|Bearer)\s+/i, '');
     if (!key) throw new ApiError(401, 'API key wajib (header X-Api-Key)');
     const h = createHash('sha256').update(String(key)).digest();
     let found = null;
-    for (const c of clients) if (timingSafeEqual(h, c.keyHash)) found = c;
+    for (const c of await store.list()) if (timingSafeEqual(h, c.keyHash)) found = c;
     if (!found) throw new ApiError(401, 'API key tidak valid');
     const t = now();
     const r = rate.get(found.id);
     if (!r || t - r.start >= 60_000) rate.set(found.id, { start: t, count: 1 });
     else if (++r.count > config.rateLimitPerMin) throw new ApiError(429, 'terlalu banyak request');
     return found;
+  }
+
+  // ---------- admin (pakai sesi ThingsBoard tenant admin) ----------
+
+  async function verifyAdmin(req) {
+    const raw = String(req.headers['x-authorization'] || req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+    if (!raw) throw new ApiError(401, 'login ThingsBoard diperlukan');
+    const h = createHash('sha256').update(raw).digest('hex');
+    const cached = adminSessions.get(h);
+    if (cached && cached.exp > now()) return cached.user;
+    let payload;
+    try {
+      payload = decodeJwt(raw);
+    } catch {
+      throw new ApiError(401, 'token ThingsBoard tidak valid');
+    }
+    if (!Array.isArray(payload.scopes) || !payload.scopes.includes('TENANT_ADMIN')) throw new ApiError(403, 'hanya tenant admin ThingsBoard');
+    let user;
+    try {
+      user = await tb.userOf(raw); // TB memeriksa tanda tangan & masa berlaku token
+    } catch (e) {
+      if (e instanceof TbError && e.status === 401) throw new ApiError(401, 'sesi ThingsBoard kedaluwarsa, login ulang');
+      throw e;
+    }
+    if (user.authority !== 'TENANT_ADMIN') throw new ApiError(403, 'hanya tenant admin ThingsBoard');
+    const tid = await tb.tenantId();
+    if (!tid || user.tenantId?.id !== tid) throw new ApiError(403, 'tenant berbeda dengan akun service gateway');
+    const info = { email: user.email, name: [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email };
+    adminSessions.set(h, { user: info, exp: Math.min(now() + 300_000, (payload.exp ?? 0) * 1000) });
+    return info;
+  }
+
+  const ID = '([a-z0-9][a-z0-9_-]{1,63})';
+  const adminRoutes = [
+    ['GET', /^\/admin\/v1\/me$/, (admin) => admin],
+    ['GET', /^\/admin\/v1\/meta$/, async () => ({ buildings: await gateway.allBuildings(), scopes: SCOPES.filter((x) => x !== 'webhooks') })],
+    ['GET', /^\/admin\/v1\/clients$/, async () => ({ data: await store.adminList() })],
+    ['POST', /^\/admin\/v1\/clients$/, (admin, _m, body) => store.create(body, admin.email)],
+    ['PATCH', new RegExp(`^/admin/v1/clients/${ID}$`), (admin, m, body) => store.update(m[1], body, admin.email)],
+    ['POST', new RegExp(`^/admin/v1/clients/${ID}/rotate$`), (admin, m) => store.rotate(m[1], admin.email)],
+    ['DELETE', new RegExp(`^/admin/v1/clients/${ID}$`), (_a, m) => store.remove(m[1])],
+  ];
+
+  async function handleAdmin(req, res, path) {
+    for (const [method, re, fn] of adminRoutes) {
+      const m = path.match(re);
+      if (!m || req.method !== method) continue;
+      const admin = await verifyAdmin(req);
+      const body = method === 'POST' || method === 'PATCH' ? await readJson(req) : undefined;
+      const out = await fn(admin, m, body);
+      if (method !== 'GET') log.log(`[admin] ${admin.email} ${method} ${path}`);
+      return send(res, method === 'POST' && path === '/admin/v1/clients' ? 201 : 200, out);
+    }
+    throw new ApiError(404, 'not found');
   }
 
   function need(client, scope) {
@@ -239,7 +296,7 @@ export function createGatewayServer(config, deps = {}) {
       return res.end();
     }
     if (req.method === 'GET' && path === '/health') {
-      return send(res, 200, { status: 'ok', clients: clients.length, realtimeSubscriptions: hub.size, webhooks: webhooks.targets.length });
+      return send(res, 200, { status: 'ok', clients: (await store.list()).length, realtimeSubscriptions: hub.size, webhooks: webhooks.targets.length });
     }
     if (req.method === 'GET' && (path === '/openapi.yaml' || path === '/v1/openapi.yaml')) {
       openapi ??= readFileSync(resolve(ROOT, 'openapi.yaml'), 'utf8');
@@ -261,12 +318,28 @@ export function createGatewayServer(config, deps = {}) {
       });
       return res.end(playground);
     }
+    if (req.method === 'GET' && (path === '/admin' || path === '/admin/')) {
+      // halaman API Key Manager; dibuka di dalam dashboard ThingsBoard (origin sama) memakai sesi login TB
+      adminPage ??= readFileSync(resolve(ROOT, 'public/admin.html'), 'utf8');
+      res.writeHead(200, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-cache',
+        'Content-Security-Policy':
+          "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'self'; base-uri 'none'; form-action 'none'",
+        'X-Frame-Options': 'SAMEORIGIN',
+        'Referrer-Policy': 'no-referrer',
+        'X-Content-Type-Options': 'nosniff',
+      });
+      return res.end(adminPage);
+    }
+    if (path.startsWith('/admin/v1/')) return handleAdmin(req, res, path);
+
     const tm = path.match(/^\/e\/([A-Za-z0-9_-]{32})$/);
     if (req.method === 'GET' && tm) return consumeTicket(res, tm[1]);
 
     const sm = path.match(new RegExp(`^/v1/buildings/${B}/stream$`));
     if (req.method === 'GET' && sm) {
-      const client = authenticate(req);
+      const client = await authenticate(req);
       need(client, 'stream');
       return stream(req, res, client, sm[1].toLowerCase(), url);
     }
@@ -275,7 +348,7 @@ export function createGatewayServer(config, deps = {}) {
       const m = path.match(re);
       if (!m) continue;
       if (req.method !== method) throw new ApiError(405, 'method tidak didukung');
-      const client = authenticate(req);
+      const client = await authenticate(req);
       need(client, scope);
       const ids = m.slice(1).map((s) => s.toLowerCase());
       for (const id of ids) if (!UUID_RE.test(id)) throw new ApiError(400, 'ID harus UUID');
@@ -294,9 +367,10 @@ export function createGatewayServer(config, deps = {}) {
     try {
       await handle(req, res);
     } catch (e) {
-      const status = e instanceof ApiError ? e.status : e instanceof TbError ? 502 : 500;
+      const known = e instanceof ApiError || e instanceof StoreError;
+      const status = known ? e.status : e instanceof TbError ? 502 : 500;
       if (status >= 500) log.error(`[gw] ${req.method} ${(req.url ?? '').split('?')[0]}:`, e.message);
-      if (!res.headersSent) send(res, status, { error: status >= 500 && !(e instanceof ApiError) ? 'gagal menghubungi ThingsBoard' : e.message }, cors(req, null));
+      if (!res.headersSent) send(res, status, { error: status >= 500 && !known ? 'gagal menghubungi ThingsBoard' : e.message }, cors(req, null));
       else res.end();
     }
   });

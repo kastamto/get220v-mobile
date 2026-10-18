@@ -116,6 +116,7 @@ export function loadConfig(env = process.env) {
     minSessionSec: int(env.MIN_SESSION_SEC, 1800),
     rateLimitPerMin: int(env.RATE_LIMIT_PER_MIN, 300),
     alarmPollSec: int(env.ALARM_POLL_SEC, 30),
+    clientCacheSec: int(env.CLIENT_CACHE_SEC, 30),
     webhookBatchMs: int(env.WEBHOOK_BATCH_MS, 5000),
     clients,
   };

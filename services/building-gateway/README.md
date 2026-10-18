@@ -98,6 +98,20 @@ Halaman ini statis, tidak berisi rahasia, dan tidak memuat script dari luar. CSP
 mengizinkan koneksi ke API di origin yang sama dan tidak bisa di-iframe. API key disimpan
 di `sessionStorage` tab itu saja.
 
+## API Key Manager (dari web ThingsBoard)
+
+Tenant admin bisa mengelola API key langsung dari dashboard ThingsBoard, tanpa SSH, tanpa
+mengedit `clients.json`, dan tanpa restart:
+
+- buat client (pilih gedung + scope); key ditampilkan **sekali**
+- ubah gedung, scope, method RPC, embed user
+- rotasi key, nonaktifkan/aktifkan, hapus
+
+Halaman: `https://iot.get220v.com/building-api/admin` (pakai sesi login TB). Cara memasangnya
+sebagai widget di dashboard TB: `deploy/thingsboard-widget/README.md`. Client disimpan sebagai
+asset TB type `api-client`; hanya hash key yang disimpan. Client di `clients.json` tetap berlaku
+(untuk webhook).
+
 ## API ringkas
 
 Header: `X-Api-Key: <key>`. Spesifikasi lengkap: `GET /building-api/openapi.yaml`

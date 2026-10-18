@@ -13,6 +13,7 @@ export const ID = {
   DASH_GONE: 'da000000-0000-0000-0000-0000000000ff',
   EMBED_USER: 'e0000000-0000-0000-0000-000000000001',
   CUSTOMER: 'c0000000-0000-0000-0000-000000000001',
+  TENANT: '70000000-0000-0000-0000-000000000001',
 };
 
 export function jwt(payload) {
@@ -21,13 +22,15 @@ export function jwt(payload) {
 }
 
 export async function startMockTb() {
-  const tenantToken = jwt({ scopes: ['TENANT_ADMIN'] });
+  const tenantToken = jwt({ scopes: ['TENANT_ADMIN'], tenantId: ID.TENANT });
   const userToken = jwt({ scopes: ['CUSTOMER_USER'], customerId: ID.CUSTOMER });
   const state = {
     calls: [],
     alarms: [{ id: { id: 'al000000-0000-0000-0000-000000000001' }, type: 'High Temp', severity: 'MAJOR', status: 'ACTIVE_UNACK', originator: { id: ID.DEV1, entityType: 'DEVICE' }, originatorName: 'Pompa A', createdTime: 1 }],
     rpcCalls: [],
     tenantToken,
+    // token -> user untuk GET /api/auth/user (token lain = 401, seperti token kedaluwarsa)
+    authUsers: {},
     userToken,
   };
   const assets = {
@@ -89,6 +92,11 @@ export async function startMockTb() {
     state.calls.push(`${req.method} ${p}`);
     const auth = req.headers['x-authorization'];
     const isTenant = auth === `Bearer ${tenantToken}`;
+    if (p === '/api/auth/user') {
+      const u = state.authUsers[String(auth).replace(/^Bearer /, '')];
+      res.writeHead(u ? 200 : 401, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(u ?? { message: 'Token has expired' }));
+    }
     const isUser = auth === `Bearer ${userToken}`;
     const json = (s, d) => {
       res.writeHead(s, { 'Content-Type': 'application/json' });
@@ -128,8 +136,13 @@ export async function startMockTb() {
     }
     if (p === '/api/asset' && req.method === 'POST' && isTenant) {
       const a = JSON.parse(body);
+      if (a.id?.id && assets[a.id.id]) {
+        assets[a.id.id] = { ...assets[a.id.id], ...a };
+        return json(200, assets[a.id.id]);
+      }
+      if (Object.values(assets).some((x) => x.name === a.name)) return json(400, { message: 'Asset with such name already exists!' });
       const id = `a${String(Object.keys(assets).length).padStart(7, '0')}-0000-0000-0000-000000000000`;
-      assets[id] = { id: { id }, name: a.name, label: a.label, type: a.type };
+      assets[id] = { id: { id }, name: a.name, label: a.label, type: a.type, createdTime: 1700000000000 };
       return json(200, assets[id]);
     }
     if (p === '/api/relation' && isTenant) {
@@ -145,6 +158,10 @@ export async function startMockTb() {
         edges.splice(i, 1);
         return json(200);
       }
+    }
+    if ((m = p.match(/^\/api\/plugins\/telemetry\/ASSET\/([^/]+)\/attributes\/SERVER_SCOPE$/)) && isTenant && req.method === 'POST') {
+      state.serverAttrs[m[1]] = { ...state.serverAttrs[m[1]], ...JSON.parse(body) };
+      return json(200);
     }
     if ((m = p.match(/^\/api\/plugins\/telemetry\/DEVICE\/([^/]+)\/(attributes\/)?SERVER_SCOPE$/)) && isTenant && req.method !== 'GET') {
       if (req.method === 'POST') state.serverAttrs[m[1]] = { ...state.serverAttrs[m[1]], ...JSON.parse(body) };
@@ -183,6 +200,8 @@ export async function startMockTb() {
     if ((m = p.match(/^\/api\/plugins\/telemetry\/ASSET\/(.+)\/values\/attributes\/SERVER_SCOPE$/))) {
       const attrs = [{ key: 'address', value: 'Jl. Amani 1', lastUpdateTs: 1 }];
       if (m[1] === ID.B1) attrs.push({ key: 'dashboards', value: JSON.stringify([{ id: ID.DASH1, stateId: 'building' }, ID.DASH_GONE]), lastUpdateTs: 1 });
+      // atribut yang disimpan lewat POST (TB mengembalikan nilai JSON sebagai objek/array)
+      for (const [key, value] of Object.entries(state.serverAttrs[m[1]] ?? {})) attrs.push({ key, value, lastUpdateTs: 2 });
       const keys = url.searchParams.get('keys');
       return json(200, keys ? attrs.filter((a) => keys.split(',').includes(a.key)) : attrs);
     }

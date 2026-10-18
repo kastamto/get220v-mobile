@@ -136,6 +136,16 @@ export class TbClient {
     return this.userPending.get(userId);
   }
 
+  /** Info user pemilik token (TB yang memvalidasi tanda tangan & masa berlakunya). */
+  async userOf(token) {
+    return this.#raw('GET', '/api/auth/user', { token });
+  }
+
+  /** tenantId akun service (dari token tenant admin-nya). */
+  async tenantId() {
+    return decodeJwt(await this.tenantToken()).tenantId ?? null;
+  }
+
   /** customerId user bila customer user, null bila tenant-level. */
   static customerIdOf(payload) {
     const cid = payload.customerId;
