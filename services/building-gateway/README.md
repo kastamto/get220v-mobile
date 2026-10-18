@@ -205,6 +205,17 @@ pm2 start deploy/ecosystem.config.cjs && pm2 save
 curl -s https://iot.get220v.com/building-api/health
 ```
 
+Kalau Node sistem di VPS < 22 (`node -v`), jangan upgrade Node sistem (bisa mempengaruhi service PM2 lain). Pasang
+Node 22 terpisah, misalnya:
+
+```bash
+curl -fsSL -o /tmp/node22.tar.xz https://nodejs.org/dist/v22.14.0/node-v22.14.0-linux-x64.tar.xz
+mkdir -p /opt/nodejs && tar -xJf /tmp/node22.tar.xz -C /opt/nodejs && mv /opt/nodejs/node-v22.14.0-linux-x64 /opt/nodejs/node22
+```
+
+lalu tambahkan `interpreter: '/opt/nodejs/node22/bin/node'` di `apps[0]` pada `deploy/ecosystem.config.cjs` sebelum
+`pm2 start` (path lokal, jangan di-commit kalau beda per server).
+
 ## Keamanan
 
 - Kredensial tenant admin hanya ada di `.env` server. App luar hanya memegang API key, yang
