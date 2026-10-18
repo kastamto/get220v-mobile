@@ -111,7 +111,7 @@ ThemeData tbDarkTheme = ThemeData(
   filledButtonTheme: FilledButtonThemeData(
     style: FilledButton.styleFrom(
       backgroundColor: AppColors.darkPrimaryBlue,
-      foregroundColor: AppColors.white,
+      foregroundColor: AppColors.brandNavy, // teks navy di atas tombol emas (kontras)
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       textStyle: TbTextStyles.labelMedium,
       shape: RoundedRectangleBorder(
@@ -123,7 +123,7 @@ ThemeData tbDarkTheme = ThemeData(
   elevatedButtonTheme: ElevatedButtonThemeData(
     style: ElevatedButton.styleFrom(
       backgroundColor: AppColors.darkPrimaryBlue,
-      foregroundColor: AppColors.white,
+      foregroundColor: AppColors.brandNavy, // teks navy di atas tombol emas (kontras)
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       textStyle: TbTextStyles.labelMedium,
       elevation: 2,

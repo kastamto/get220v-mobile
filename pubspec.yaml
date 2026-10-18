@@ -3,7 +3,7 @@ description: Flutter ThingsBoard Mobile Application
 
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
-version: 1.8.1+14
+version: 1.8.2+15
 
 environment:
   sdk: ^3.7.0
@@ -159,3 +159,6 @@ flutter_native_splash:
     image: assets/branding/icon_filled.png
     icon_background_color: "#0C1445"
   fullscreen: true
+  info_plist_files:
+    - 'ios/Runner/Info-Debug.plist'
+    - 'ios/Runner/Info-Release.plist'

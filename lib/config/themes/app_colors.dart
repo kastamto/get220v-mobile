@@ -3,10 +3,14 @@ import 'package:flutter/material.dart';
 class AppColors {
   AppColors._();
   
-  // Primary Brand Colors (Get220v Theme)
-  static const primaryBlue = Color(0xFF6F42C1);
-  static const secondaryBlue = Color(0xFF007BFF);
-  static const darkPrimaryBlue = Color(0xFF9F7FD4);
+  // Brand Get220v (get220v.com): navy + emas petir, sama dengan ikon & splash
+  static const brandNavy = Color(0xFF0C1445);
+  static const accentGold = Color(0xFFF5B82E);
+
+  // Nama lama dipertahankan supaya pemakai lain tidak perlu diubah
+  static const primaryBlue = brandNavy; // warna utama tema terang
+  static const secondaryBlue = accentGold;
+  static const darkPrimaryBlue = accentGold; // warna utama tema gelap (emas di atas gelap)
   
   // Surface Colors
   static const white = Color(0xFFFFFFFF);
@@ -43,35 +47,35 @@ class AppColors {
   static const cameraBackground = Color(0xFF828282);
   
   // Selection and Focus Colors
-  static const selectionColor = Color(0x336F42C1);
+  static const selectionColor = Color(0x330C1445);
   static const focusColor = primaryBlue;
   
-  // Material Color Swatch for Get220v Purple
-  static const MaterialColor primarySwatch = MaterialColor(0xFF6F42C1, <int, Color>{
-    50: Color(0xFFEDE7F6),
-    100: Color(0xFFD1C4E9),
-    200: Color(0xFFB39DDB),
-    300: Color(0xFF9575CD),
-    400: Color(0xFF7E57C2),
-    500: primaryBlue,
-    600: Color(0xFF5E35B1),
-    700: Color(0xFF512DA8),
-    800: Color(0xFF4527A0),
-    900: Color(0xFF311B92),
+  // Material swatch navy Get220v
+  static const MaterialColor primarySwatch = MaterialColor(0xFF0C1445, <int, Color>{
+    50: Color(0xFFE6E8F2),
+    100: Color(0xFFC0C5DF),
+    200: Color(0xFF969FC9),
+    300: Color(0xFF6C78B3),
+    400: Color(0xFF4D5BA3),
+    500: Color(0xFF2E3F93),
+    600: Color(0xFF26368A),
+    700: Color(0xFF1C2A7C),
+    800: Color(0xFF13206D),
+    900: brandNavy,
   });
   
   // Dark Theme
-  static const MaterialColor darkPrimarySwatch = MaterialColor(0xFF6F42C1, <int, Color>{
-    50: Color(0xFFEDE7F6),
-    100: Color(0xFFD1C4E9),
-    200: Color(0xFF9F7FD4),
-    300: Color(0xFF9575CD),
-    400: Color(0xFF7E57C2),
-    500: darkPrimaryBlue,
-    600: secondaryBlue,
-    700: Color(0xFF512DA8),
-    800: primaryBlue,
-    900: Color(0xFF311B92),
+  static const MaterialColor darkPrimarySwatch = MaterialColor(0xFFF5B82E, <int, Color>{
+    50: Color(0xFFFEF6E5),
+    100: Color(0xFFFCE8BE),
+    200: Color(0xFFFAD993),
+    300: Color(0xFFF8CA68),
+    400: Color(0xFFF7BF47),
+    500: accentGold,
+    600: Color(0xFFF4AE28),
+    700: Color(0xFFF2A522),
+    800: Color(0xFFF09D1C),
+    900: Color(0xFFEE8D11),
   });
   
   static Color get appPrimaryColor => primaryBlue;

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:thingsboard_app/config/themes/app_colors.dart';
 import 'package:thingsboard_app/modules/qr_scanner/qr_scanner_page.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:thingsboard_app/core/auth/login/models/login_state.dart';
@@ -65,12 +66,12 @@ class _HomePageState extends ConsumerState<HomePage>
       return Scaffold(
         body: const DashboardsPage(),
         floatingActionButton: FloatingActionButton(
-          backgroundColor: const Color(0xFF6F42C1),
+          backgroundColor: AppColors.accentGold,
           onPressed: () => Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const QrScannerPage()),
           ),
-          child: const Icon(Icons.qr_code_scanner, color: Colors.white),
+          child: const Icon(Icons.qr_code_scanner, color: AppColors.brandNavy),
         ),
       );
     }

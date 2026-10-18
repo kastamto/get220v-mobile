@@ -1,0 +1,12 @@
+{
+  "thingsboardApiEndpoint": "https://iot.get220v.com",
+  "thingsboardOAuth2CallbackUrlScheme": "com.get220v.app.auth",
+  "androidApplicationId": "com.get220v.app",
+  "androidApplicationName": "Get220v",
+  "iosApplicationId": "com.get220v.app",
+  "iosApplicationName": "Get220v",
+  "appLinksUrlHost": "iot.get220v.com",
+  "appLinksUrlScheme": "https",
+  "registrationRedirectUrlHost": "iot.get220v.com",
+  "registrationRedirectUrlScheme": "com.get220v.app.auth"
+}

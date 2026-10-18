@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:thingsboard_app/config/themes/app_colors.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -60,7 +61,7 @@ class _QrScannerPageState extends State<QrScannerPage> {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
-              color: const Color(0xFF6F42C1),
+              color: AppColors.brandNavy,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -85,7 +86,7 @@ class _QrScannerPageState extends State<QrScannerPage> {
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.link, color: Color(0xFF6F42C1)),
+                          const Icon(Icons.link, color: AppColors.brandNavy),
                           const SizedBox(width: 8),
                           Expanded(child: Text(url, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis)),
                         ],
@@ -96,7 +97,7 @@ class _QrScannerPageState extends State<QrScannerPage> {
                       width: double.infinity,
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF6F42C1),
+                          backgroundColor: AppColors.brandNavy,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),
@@ -116,11 +117,11 @@ class _QrScannerPageState extends State<QrScannerPage> {
                       child: OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 14),
-                          side: const BorderSide(color: Color(0xFF6F42C1)),
+                          side: const BorderSide(color: AppColors.brandNavy),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),
-                        icon: const Icon(Icons.qr_code_scanner, color: Color(0xFF6F42C1)),
-                        label: const Text("Scan Lagi", style: TextStyle(color: Color(0xFF6F42C1), fontSize: 15)),
+                        icon: const Icon(Icons.qr_code_scanner, color: AppColors.brandNavy),
+                        label: const Text("Scan Lagi", style: TextStyle(color: AppColors.brandNavy, fontSize: 15)),
                         onPressed: () {
                           Navigator.pop(ctx);
                           setState(() => _scanned = false);
@@ -143,7 +144,7 @@ class _QrScannerPageState extends State<QrScannerPage> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF6F42C1),
+        backgroundColor: AppColors.brandNavy,
         title: const Text("Scan Device QR", style: TextStyle(color: Colors.white)),
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
@@ -164,7 +165,7 @@ class _QrScannerPageState extends State<QrScannerPage> {
             child: Container(
               width: 260, height: 260,
               decoration: BoxDecoration(
-                border: Border.all(color: const Color(0xFF6F42C1), width: 3),
+                border: Border.all(color: AppColors.brandNavy, width: 3),
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
