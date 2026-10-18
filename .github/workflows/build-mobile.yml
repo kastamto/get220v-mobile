@@ -49,6 +49,12 @@ jobs:
           dart run flutter_launcher_icons
           dart run flutter_native_splash:create
 
+      - name: Terima lisensi Android SDK + pasang NDK
+        run: |
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKM" --licenses > /dev/null || true
+          "$SDKM" --install "ndk;29.0.13113456" > /dev/null
+
       - name: Build APK release
         run: flutter build apk --release --dart-define-from-file=configs.json
 
