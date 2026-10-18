@@ -165,7 +165,7 @@ class _QrScannerPageState extends State<QrScannerPage> {
             child: Container(
               width: 260, height: 260,
               decoration: BoxDecoration(
-                border: Border.all(color: AppColors.brandNavy, width: 3),
+                border: Border.all(color: AppColors.accentGold, width: 3), // emas: terlihat di atas kamera
                 borderRadius: BorderRadius.circular(12),
               ),
             ),

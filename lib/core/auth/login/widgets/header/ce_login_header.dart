@@ -16,7 +16,8 @@ class LoginHeader extends StatelessWidget {
           SvgPicture.asset(
             Get220vImage.thingsBoardWithTitle,
             height: 30,
-            colorFilter: Utils.toColorFilter(theme.primaryColor),
+            // warna brand asli (petir emas + teks navy); di tema gelap diputihkan supaya terbaca
+            colorFilter: theme.brightness == Brightness.dark ? Utils.toColorFilter(Colors.white) : null,
           ),
         ],
       ),
