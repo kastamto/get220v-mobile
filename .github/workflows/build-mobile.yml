@@ -26,6 +26,8 @@ jobs:
     name: Android APK
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    permissions:
+      contents: write   # untuk rilis apk-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -71,6 +73,17 @@ jobs:
           name: Get220v-Android-${{ steps.out.outputs.version }}
           path: dist/*.apk
           retention-days: 30
+
+      # Pre-release "apk-latest" = link unduhan tetap untuk APK terbaru (diganti setiap build)
+      - name: Rilis apk-latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete apk-latest --cleanup-tag --yes -R "$GITHUB_REPOSITORY" || true
+          gh release create apk-latest dist/*.apk -R "$GITHUB_REPOSITORY" \
+            --prerelease --target "$GITHUB_SHA" \
+            --title "Get220v APK terbaru (${{ steps.out.outputs.version }})" \
+            --notes "Build otomatis dari ${GITHUB_SHA::7} (${GITHUB_REF_NAME}). Untuk tes / sideload; ditandatangani debug key, bukan untuk Play Store."
 
   ios:
     name: iOS (Simulator + unsigned IPA)
