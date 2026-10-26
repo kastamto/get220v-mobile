@@ -303,3 +303,51 @@ test('validasi config client', () => {
   );
   assert.throws(() => validateClients({ clients: [{ id: 'xx', keySha256: sha('a'), buildings: ['bukan-uuid'] }] }), /UUID/);
 });
+
+test('realtime: subscriber kedua dapat snapshot dari cache', async () => {
+  const h = new RealtimeHub({ wsUrl: 'ws://fake', getToken: async () => 'tok', WebSocketImpl: FakeWS, log: quiet, staleMs: 0 });
+  try {
+    const a = [];
+    h.subscribe(ID.DEV1, (m) => a.push(m.values));
+    await new Promise((r) => setTimeout(r, 5));
+    const ws = FakeWS.instances.at(-1);
+    const cmdId = ws.sent[0].cmds[0].cmdId;
+    ws.push({ subscriptionId: cmdId, errorCode: 0, data: { t: [[1, '20']], h: [[1, '60']] } });
+    ws.push({ subscriptionId: cmdId, errorCode: 0, data: { t: [[2, '21']] } });
+    const b = [];
+    h.subscribe(ID.DEV1, (m) => b.push(m.values));
+    await new Promise((r) => setTimeout(r, 1));
+    assert.equal(a.length, 2);
+    assert.deepEqual(b, [{ t: { ts: 2, value: 21 }, h: { ts: 1, value: 60 } }]);
+    assert.equal(ws.sent.length, 1, 'tidak subscribe ulang ke TB');
+  } finally {
+    h.close();
+  }
+});
+
+test('realtime: watchdog membuka ulang koneksi yang diam', async () => {
+  let t = 1000;
+  let tokens = 0;
+  const h = new RealtimeHub({ wsUrl: 'ws://fake', getToken: async () => `tok${++tokens}`, WebSocketImpl: FakeWS, log: quiet, staleMs: 60_000, now: () => t });
+  try {
+    const got = [];
+    h.subscribe(ID.DEV1, (m) => got.push(m.values));
+    await new Promise((r) => setTimeout(r, 5));
+    const ws1 = FakeWS.instances.at(-1);
+    t += 30_000;
+    assert.equal(h.checkStale(), false);
+    t += 31_000;
+    assert.equal(h.checkStale(), true);
+    await new Promise((r) => setTimeout(r, 5));
+    const ws2 = FakeWS.instances.at(-1);
+    assert.notEqual(ws1, ws2);
+    assert.equal(ws2.sent[0].authCmd.token, 'tok2', 'token baru');
+    assert.equal(ws2.sent[0].cmds[0].entityId, ID.DEV1, 'subscribe ulang');
+    ws1.push({ subscriptionId: 1, errorCode: 0, data: { t: [[9, '1']] } });
+    assert.equal(got.length, 0, 'pesan dari socket lama diabaikan');
+    ws2.push({ subscriptionId: ws2.sent[0].cmds[0].cmdId, errorCode: 0, data: { t: [[10, '22']] } });
+    assert.deepEqual(got, [{ t: { ts: 10, value: 22 } }]);
+  } finally {
+    h.close();
+  }
+});

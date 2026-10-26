@@ -54,7 +54,7 @@ export function createGatewayServer(config, deps = {}) {
     deps.tb ??
     new TbClient({ baseUrl: config.tbInternalUrl, username: config.tbUsername, password: config.tbPassword, minSessionSec: config.minSessionSec });
   const gateway = new Gateway({ tb, config, now });
-  const hub = deps.hub ?? new RealtimeHub({ wsUrl: config.tbWsUrl, getToken: () => tb.tenantToken(), WebSocketImpl: deps.WebSocketImpl, log });
+  const hub = deps.hub ?? new RealtimeHub({ wsUrl: config.tbWsUrl, getToken: () => tb.tenantToken(), WebSocketImpl: deps.WebSocketImpl, log, staleMs: (config.realtimeStaleSec ?? 300) * 1000 });
   const webhooks = new WebhookDispatcher({ gateway, hub, clients: config.clients, config, fetchImpl: deps.webhookFetch, log, now });
 
   const store = deps.clientStore ?? new ClientStore({ tb, fileClients: config.clients, ttlMs: (config.clientCacheSec ?? 30) * 1000, log, now });
