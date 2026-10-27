@@ -1,0 +1,35 @@
+{
+  "widgetsBundle": {
+    "alias": "get220v_admin",
+    "title": "Get220v Admin",
+    "name": "Get220v Admin",
+    "image": null,
+    "description": "Widget admin Get220v",
+    "order": null
+  },
+  "widgetTypes": [
+    {
+      "fqn": "api_key_manager",
+      "name": "API Key Manager",
+      "deprecated": false,
+      "image": null,
+      "description": "Kelola API key aplikasi luar (building-gateway). Hanya untuk tenant admin.",
+      "descriptor": {
+        "type": "static",
+        "sizeX": 24,
+        "sizeY": 12,
+        "resources": [],
+        "templateHtml": "<iframe class=\"g220v-key-manager\" src=\"/building-api/admin\" title=\"API Key Manager\"></iframe>",
+        "templateCss": ".g220v-key-manager {\n  width: 100%;\n  height: 100%;\n  border: 0;\n  display: block;\n}",
+        "controllerScript": "// Widget statis: menampilkan halaman API Key Manager dari building-gateway.\n// Halaman itu memakai sesi login ThingsBoard yang sama (origin iot.get220v.com),\n// jadi tidak perlu password tambahan. Hanya tenant admin yang bisa memakainya.\nself.onInit = function () {};\nself.onResize = function () {};\nself.onDestroy = function () {};",
+        "settingsSchema": "",
+        "dataKeySettingsSchema": "",
+        "defaultConfig": "{\"datasources\": [], \"timewindow\": {\"realtime\": {\"timewindowMs\": 60000}}, \"showTitle\": false, \"backgroundColor\": \"#ffffff\", \"color\": \"rgba(0, 0, 0, 0.87)\", \"padding\": \"0px\", \"settings\": {}, \"title\": \"API Key Manager\", \"dropShadow\": false, \"enableFullscreen\": true}"
+      },
+      "tags": [
+        "get220v",
+        "admin"
+      ]
+    }
+  ]
+}

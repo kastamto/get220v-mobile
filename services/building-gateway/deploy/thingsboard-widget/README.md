@@ -7,7 +7,8 @@ langsung dari web TB.
 ## Pasang cepat: import JSON (disarankan)
 
 1. **Resources → Widgets library → tab Widgets → + → Import widget**, pilih
-   `api_key_manager.widget.json`, lalu Import.
+   `api_key_manager.widget.json`, lalu Import. Atau, di **tab Widgets bundles → + → Import widgets
+   bundle**, pilih `get220v_admin.bundle.json` (bundle "Get220v Admin" berisi widget yang sama).
 2. **Dashboards → + → Import dashboard**, pilih `api_keys.dashboard.json`, lalu Import.
    Dashboard ini memakai widget `tenant.api_key_manager`, jadi langkah 1 harus selesai dulu.
 3. Buka dashboard **API Keys**. Jangan assign dashboard ini ke customer.
