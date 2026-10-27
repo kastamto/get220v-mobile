@@ -27,8 +27,14 @@ Asset type "building"  (mis. "Rukita Amani")
  │    └─ Contains → Device "Pompa A"
  └─ Contains → Device "Sensor Gerbang Amani"
 
-Server attribute building:  dashboards = [{"id":"<dashUuid>","stateId":"default"}]
+Server attribute building:  dashboards = [{"id":"<dashUuid>","stateId":"default"}]   (opsional)
 ```
+
+**Dashboard gedung tanpa setup:** kalau atribut `dashboards` tidak diisi, dashboard gedung =
+dashboard yang di-assign ke **customer pemilik device** gedung itu. Untuk embed, gateway memakai
+user customer yang emailnya diawali `embed` (mis. `embed-muraya@...`), atau **membuat & mengaktifkan
+user read-only `embed-<id>@<host TB>` secara otomatis** di customer itu (password acak, tidak
+disimpan). Jadi cukup kelola assignment dashboard/device ke customer di TB UI.
 
 - Device yang **tidak** ada di bawah building tidak bisa diakses lewat building itu, walau
   ID-nya ditebak (dicek ke topologi, bukan sekadar UUID valid).
@@ -164,8 +170,9 @@ for (let buf = ''; ; ) {
 ```
 
 Embed dashboard (iframe/WebView). `embedUrl` berlaku 60 detik dan hanya bisa dibuka sekali.
-Dashboard otomatis dibuka dengan **entity = building tersebut** (atau device kalau ada
-`deviceId`). Jadi satu dashboard template bisa dipakai untuk semua gedung, asalkan alias
+Dashboard dibuka dengan **entity = building tersebut** (atau device kalau ada `deviceId`). Kalau
+user embed tidak bisa membuka asset building (biasanya asset milik tenant), dashboard dibuka di
+state bawaannya (`entity: null`). Jadi satu dashboard template bisa dipakai untuk semua gedung, asalkan alias
 dashboard memakai *"Entity from dashboard state"*.
 
 ### Webhook
@@ -195,7 +202,7 @@ POST JSON ke URL app luar:
 | `buildings` | UUID asset building, atau `["*"]` |
 | `scopes` | `read telemetry history attributes alarms stream dashboards rpc webhooks` |
 | `rpcMethods` | allowlist method RPC (disarankan diisi kalau scope `rpc`) |
-| `embedUserId` | UUID **customer user read-only** TB untuk embed dashboard |
+| `embedUserId` | Opsional. UUID user TB untuk embed; kosong = user embed otomatis per customer |
 | `includeRefreshToken` | default `false` |
 | `allowedOrigins` | CORS untuk panggilan langsung dari browser (kosongkan kalau dari backend) |
 | `maxStreams` | maks SSE bersamaan, default 5 |

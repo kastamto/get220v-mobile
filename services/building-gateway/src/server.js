@@ -161,11 +161,14 @@ export function createGatewayServer(config, deps = {}) {
 
   // ---------- dashboard embed (link sekali pakai) ----------
 
+  const publicDash = ({ id, title, stateId, source }) => ({ id, title, stateId, source });
+
   async function embed(client, buildingId, dashboardId, body) {
-    if (!client.embedUserId) throw new ApiError(400, 'client belum punya embedUserId (user TB read-only untuk embed)');
     const list = await gateway.dashboards(client, buildingId);
     const dash = list.find((d) => d.id === dashboardId);
     if (!dash) throw new ApiError(404, 'dashboard tidak terdaftar untuk building ini');
+    // embedUserId di client = override; default: user embed otomatis milik customer gedung
+    const userId = client.embedUserId || (await gateway.embedUserFor(await gateway.dashboardCustomer(buildingId, dash)));
 
     let entity = { id: buildingId, entityType: 'ASSET' };
     let entityName = (await gateway.topology(buildingId)).building.name;
@@ -176,20 +179,30 @@ export function createGatewayServer(config, deps = {}) {
       entityName = device.name;
     }
     // pastikan user embed memang bisa membuka dashboard & entity-nya (permission TB)
+    const denied = (e) => e instanceof TbError && [403, 404].includes(e.status);
     try {
-      await tb.asUser(client.embedUserId, 'GET', `/api/dashboard/info/${dashboardId}`);
-      await tb.asUser(client.embedUserId, 'GET', entity.entityType === 'ASSET' ? `/api/asset/${entity.id}` : `/api/device/${entity.id}`);
+      await tb.asUser(userId, 'GET', `/api/dashboard/info/${dashboardId}`);
+      if (entity.entityType === 'DEVICE') await tb.asUser(userId, 'GET', `/api/device/${entity.id}`);
     } catch (e) {
-      if (e instanceof TbError && [403, 404].includes(e.status)) {
-        throw new ApiError(403, 'user embed belum di-assign ke dashboard / building ini di TB');
-      }
+      if (denied(e)) throw new ApiError(403, 'user embed tidak punya akses ke dashboard / device ini di TB (assign ke customer yang sama)');
       throw e;
     }
-    const stateId = typeof body.stateId === 'string' && /^[\w-]{1,64}$/.test(body.stateId) ? body.stateId : dash.stateId ?? 'default';
-    const t = await tb.userToken(client.embedUserId);
+    // asset building sering milik tenant (dibuat helper bulk): kalau user embed tidak bisa
+    // membukanya, buka dashboard di state bawaannya tanpa parameter entity
+    if (entity.entityType === 'ASSET') {
+      try {
+        await tb.asUser(userId, 'GET', `/api/asset/${entity.id}`);
+      } catch (e) {
+        if (!denied(e)) throw e;
+        entity = null;
+      }
+    }
+    const t = await tb.userToken(userId);
     const qs = new URLSearchParams({ accessToken: t.token });
     if (client.includeRefreshToken) qs.set('refreshToken', t.refreshToken);
-    qs.set('state', encodeTbState([{ id: stateId, params: { entityId: entity, entityName } }]));
+    const stateId = typeof body.stateId === 'string' && /^[\w-]{1,64}$/.test(body.stateId) ? body.stateId : dash.stateId;
+    if (entity) qs.set('state', encodeTbState([{ id: stateId ?? 'default', params: { entityId: entity, entityName } }]));
+    else if (stateId) qs.set('state', encodeTbState([{ id: stateId, params: {} }]));
     if (body.hideToolbar !== false) qs.set('hideToolbar', 'true');
 
     const ticket = randomBytes(24).toString('base64url');
@@ -199,7 +212,7 @@ export function createGatewayServer(config, deps = {}) {
       embedUrl: `${config.publicBaseUrl}/e/${ticket}`,
       ticketExpiresAt: new Date(exp).toISOString(),
       sessionExpiresAt: client.includeRefreshToken ? null : new Date(t.exp).toISOString(),
-      dashboard: dash,
+      dashboard: publicDash(dash),
       entity,
     };
   }
@@ -283,7 +296,7 @@ export function createGatewayServer(config, deps = {}) {
     ['GET', new RegExp(`^/v1/buildings/${B}/alarms$`), 'alarms', (c, [b], u) =>
       gateway.alarms(c, b, Object.fromEntries(u.searchParams)).then((data) => ({ data }))],
     ['POST', new RegExp(`^/v1/buildings/${B}/devices/${B}/rpc$`), 'rpc', (c, [b, d], _u, body) => gateway.rpc(c, b, d, body)],
-    ['GET', new RegExp(`^/v1/buildings/${B}/dashboards$`), 'dashboards', (c, [b]) => gateway.dashboards(c, b).then((data) => ({ data }))],
+    ['GET', new RegExp(`^/v1/buildings/${B}/dashboards$`), 'dashboards', (c, [b]) => gateway.dashboards(c, b).then((data) => ({ data: data.map(publicDash) }))],
     ['POST', new RegExp(`^/v1/buildings/${B}/dashboards/${B}/embed$`), 'dashboards', (c, [b, d], _u, body) => embed(c, b, d, body)],
   ];
 

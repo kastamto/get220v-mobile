@@ -212,7 +212,7 @@
     bSearch.oninput = () => { const q = bSearch.value.toLowerCase(); for (const l of bGrid.children) l.style.display = l.dataset.name.includes(q) ? '' : 'none'; };
     const sChecks = meta.scopes.map((s) => ({ s, box: el('input', { type: 'checkbox', checked: c ? c.scopes.includes(s) : ['read', 'telemetry'].includes(s) }) }));
     const rpcIn = el('input', { type: 'text', value: (c?.rpcMethods ?? []).join(', '), placeholder: 'mis. setRelay, getStatus (kosong = semua method)' });
-    const embedIn = el('input', { type: 'text', value: c?.embedUserId ?? '', placeholder: 'UUID customer user TB read-only (untuk embed dashboard)' });
+    const embedIn = el('input', { type: 'text', value: c?.embedUserId ?? '', placeholder: 'Kosongkan = otomatis (disarankan)' });
     const errBox = el('div', { class: 'err', style: 'margin-top:10px' });
     // ID otomatis dari nama selama ID belum diketik manual
     const slug = (v) => v.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64);
@@ -241,7 +241,6 @@
       if (!body.buildings.length) return fail(null, 'Pilih minimal satu gedung.');
       if (!body.scopes.length) return fail(null, 'Pilih minimal satu scope.');
       if (body.embedUserId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.embedUserId)) return fail(embedIn, 'Embed user ID harus UUID user TB (36 karakter).');
-      if (body.scopes.includes('dashboards') && !body.embedUserId) return fail(embedIn, 'Scope dashboards butuh Embed user ID. Isi, atau hapus centang dashboards.');
       save.disabled = true;
       try {
         if (creating) showKey('API key dibuat', await api('POST', '/admin/v1/clients', body));
@@ -258,8 +257,8 @@
       el('label', { class: 'f' }, 'Scope'),
       el('div', { class: 'checks', style: 'max-height:none' }, sChecks.map(({ s, box }) => el('label', {}, box, s, el('span', { class: 'muted', style: 'font-size:11px' }, ` · ${SCOPE_INFO[s] ?? ''}`)))),
       el('label', { class: 'f' }, 'Method RPC yang diizinkan (scope rpc)'), rpcIn,
-      el('label', { class: 'f' }, 'Embed user ID (scope dashboards)'), embedIn,
-      el('div', { class: 'hint' }, 'UUID customer user read-only milik customer gedung. Di TB: Customers → (customer) → Manage users → klik user → Copy user Id.'),
+      el('label', { class: 'f' }, 'Embed user ID (opsional)'), embedIn,
+      el('div', { class: 'hint' }, 'Biarkan kosong: gateway otomatis memakai/membuat user embed read-only di customer pemilik gedung. Isi hanya untuk memaksa user tertentu (UUID user, bukan customer).'),
       errBox,
     ], [el('button', { class: 'btn', onclick: close }, 'Batal'), save]);
   }

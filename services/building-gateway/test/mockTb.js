@@ -13,6 +13,8 @@ export const ID = {
   DASH_GONE: 'da000000-0000-0000-0000-0000000000ff',
   EMBED_USER: 'e0000000-0000-0000-0000-000000000001',
   CUSTOMER: 'c0000000-0000-0000-0000-000000000001',
+  CUST2: 'c0000000-0000-0000-0000-000000000002',
+  DASH2: 'da000000-0000-0000-0000-000000000002',
   TENANT: '70000000-0000-0000-0000-000000000001',
 };
 
@@ -42,8 +44,10 @@ export async function startMockTb() {
   const devices = {
     [ID.DEV1]: { id: { id: ID.DEV1 }, name: 'Pompa A', label: 'Pompa Dwi Warna', type: 'pump' },
     [ID.DEV2]: { id: { id: ID.DEV2 }, name: 'Gerbang', type: 'door' },
-    [ID.DEV3]: { id: { id: ID.DEV3 }, name: 'Meter Bintaro', type: 'meter' },
+    [ID.DEV3]: { id: { id: ID.DEV3 }, name: 'Meter Bintaro', type: 'meter', customerId: { id: ID.CUST2 } },
   };
+  state.customerUsers = {}; // customerId -> [user]
+  state.activations = [];
   const nameOf = (id) => assets[id]?.name ?? devices[id]?.name ?? null;
   // relasi disimpan sebagai edge supaya bisa ditambah/dihapus (bulk/undo)
   const edges = [
@@ -109,6 +113,31 @@ export async function startMockTb() {
     if (!isTenant && !isUser) return json(401, { message: 'unauthorized' });
 
     if (p === `/api/user/${ID.EMBED_USER}/token` && isTenant) return json(200, { token: userToken, refreshToken: 'user-rt' });
+    let mu;
+    if ((mu = p.match(/^\/api\/customer\/([^/]+)\/dashboards$/)) && isTenant) {
+      const data = mu[1] === ID.CUST2 ? [{ id: { id: ID.DASH2 }, title: 'Bintaro Monitor' }] : [];
+      return json(200, { data, totalElements: data.length, hasNext: false });
+    }
+    if ((mu = p.match(/^\/api\/customer\/([^/]+)\/users$/)) && isTenant) {
+      const data = state.customerUsers[mu[1]] ?? [];
+      return json(200, { data, totalElements: data.length, hasNext: false });
+    }
+    if (p === '/api/user' && req.method === 'POST' && isTenant) {
+      const u = JSON.parse(body);
+      const id = `e1000000-0000-0000-0000-${String(Object.values(state.customerUsers).flat().length + 1).padStart(12, '0')}`;
+      const user = { ...u, id: { id } };
+      (state.customerUsers[u.customerId.id] ??= []).push(user);
+      return json(200, user);
+    }
+    if ((mu = p.match(/^\/api\/user\/([^/]+)\/activationLink$/)) && isTenant) {
+      res.writeHead(200, { 'Content-Type': 'text/plain' });
+      return res.end(`https://iot.example.com/api/noauth/activate?activateToken=act-${mu[1]}`);
+    }
+    if (p === '/api/noauth/activate' && req.method === 'POST') {
+      state.activations.push(JSON.parse(body));
+      return json(200, { token: userToken, refreshToken: 'x' });
+    }
+    if ((mu = p.match(/^\/api\/user\/(e1[^/]+)\/token$/)) && isTenant) return json(200, { token: userToken, refreshToken: 'user-rt' });
 
     if (p === '/api/tenant/assets' && isTenant) {
       const data = Object.values(assets).filter((a) => a.type === url.searchParams.get('type'));
@@ -216,7 +245,8 @@ export async function startMockTb() {
       return m[1] === 'twoway' ? json(200, { relay: 'on' }) : json(200);
     }
     if ((m = p.match(/^\/api\/dashboard\/info\/(.+)$/))) {
-      if (m[1] === ID.DASH1) return json(200, { id: { id: ID.DASH1 }, title: 'Building Overview' });
+      if (m[1] === ID.DASH1) return json(200, { id: { id: ID.DASH1 }, title: 'Building Overview', assignedCustomers: [{ customerId: { id: ID.CUSTOMER } }] });
+      if (m[1] === ID.DASH2) return json(200, { id: { id: ID.DASH2 }, title: 'Bintaro Monitor' });
       return json(404, { message: 'nf' });
     }
     json(404, { message: `mock: ${req.method} ${p}` });

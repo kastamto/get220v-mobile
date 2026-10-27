@@ -19,7 +19,7 @@ export function decodeJwt(token) {
   return JSON.parse(Buffer.from(part, 'base64url').toString('utf8'));
 }
 
-const NULL_UUID = '13814000-1dd2-11b2-8080-808080808080';
+export const NULL_UUID = '13814000-1dd2-11b2-8080-808080808080';
 
 export class TbClient {
   constructor({ baseUrl, username, password, minSessionSec = 1800, fetchImpl = fetch, now = Date.now }) {

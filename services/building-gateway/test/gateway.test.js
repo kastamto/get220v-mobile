@@ -40,6 +40,7 @@ before(async () => {
           embedUserId: ID.EMBED_USER,
         },
         { id: 'amani-only', keySha256: sha('k-amani'), buildings: [ID.B1], scopes: ['read'] },
+        { id: 'auto-embed', keySha256: sha('k-auto'), buildings: ['*'], scopes: ['read', 'dashboards'] },
       ],
     }),
   };
@@ -179,7 +180,7 @@ test('RPC: allowlist method, timeout -> 504', async () => {
 
 test('dashboard building + embed dengan state entity building', async () => {
   const list = await (await get(`/v1/buildings/${ID.B1}/dashboards`)).json();
-  assert.deepEqual(list.data, [{ id: ID.DASH1, title: 'Building Overview', stateId: 'building' }]);
+  assert.deepEqual(list.data, [{ id: ID.DASH1, title: 'Building Overview', stateId: 'building', source: 'manual' }]);
 
   const r = await post(`/v1/buildings/${ID.B1}/dashboards/${ID.DASH1}/embed`, {});
   assert.equal(r.status, 200);
@@ -199,6 +200,31 @@ test('dashboard building + embed dengan state entity building', async () => {
   assert.equal((await post(`/v1/buildings/${ID.B1}/dashboards/${ID.DASH1}/embed`, { deviceId: ID.DEV2 })).status, 403);
   // dashboard yang tidak terdaftar di building -> 404
   assert.equal((await post(`/v1/buildings/${ID.B2}/dashboards/${ID.DASH1}/embed`, {})).status, 404);
+});
+
+test('dashboard otomatis: dari customer pemilik device + user embed dibuat sekali', async () => {
+  // B2 tanpa atribut "dashboards": dashboard customer pemilik Meter Bintaro
+  const list = await (await get(`/v1/buildings/${ID.B2}/dashboards`, 'k-auto')).json();
+  assert.deepEqual(list.data, [{ id: ID.DASH2, title: 'Bintaro Monitor', stateId: null, source: 'auto' }]);
+
+  const r = await post(`/v1/buildings/${ID.B2}/dashboards/${ID.DASH2}/embed`, {}, 'k-auto');
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  assert.equal(j.entity, null, 'asset building milik tenant -> state bawaan dashboard');
+  const users = tb.state.customerUsers[ID.CUST2];
+  assert.equal(users.length, 1);
+  assert.equal(users[0].authority, 'CUSTOMER_USER');
+  assert.match(users[0].email, /^embed-c0000000@iot\.example\.com$/);
+  assert.equal(tb.state.activations.length, 1);
+  assert.equal(tb.state.activations[0].activateToken, `act-${users[0].id.id}`);
+  const loc = new URL((await fetch(`http://127.0.0.1:${gw.address().port}${new URL(j.embedUrl).pathname}`, { redirect: 'manual' })).headers.get('location'));
+  assert.equal(loc.pathname, `/dashboard/${ID.DASH2}`);
+  assert.equal(loc.searchParams.get('state'), null);
+
+  // embed kedua memakai user yang sama
+  assert.equal((await post(`/v1/buildings/${ID.B2}/dashboards/${ID.DASH2}/embed`, {}, 'k-auto')).status, 200);
+  assert.equal(tb.state.customerUsers[ID.CUST2].length, 1);
+  assert.equal(tb.state.activations.length, 1);
 });
 
 test('SSE stream: telemetry realtime building, filter keys, unsubscribe saat client putus', async () => {

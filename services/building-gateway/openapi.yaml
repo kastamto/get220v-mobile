@@ -228,8 +228,8 @@ paths:
     parameters: [{ $ref: '#/components/parameters/buildingId' }]
     get:
       tags: [Dashboards]
-      summary: Dashboard yang terdaftar untuk building ini
-      description: 'Scope: dashboards'
+      summary: Dashboard untuk building ini
+      description: 'Scope: dashboards. source=manual (atribut building "dashboards") atau auto (dashboard customer pemilik device gedung).'
       responses:
         '200':
           description: OK
@@ -246,6 +246,7 @@ paths:
                         id: { type: string, format: uuid }
                         title: { type: string }
                         stateId: { type: string, nullable: true }
+                        source: { type: string, enum: [manual, auto] }
   /v1/buildings/{buildingId}/dashboards/{dashboardId}/embed:
     parameters:
       - { $ref: '#/components/parameters/buildingId' }
@@ -275,7 +276,7 @@ paths:
                   ticketExpiresAt: { type: string, format: date-time }
                   sessionExpiresAt: { type: string, format: date-time, nullable: true }
                   dashboard: { type: object }
-                  entity: { type: object }
+                  entity: { type: object, nullable: true, description: 'null = dashboard dibuka di state bawaannya' }
   /v1/buildings/{buildingId}/stream:
     parameters: [{ $ref: '#/components/parameters/buildingId' }]
     get:

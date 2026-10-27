@@ -188,7 +188,7 @@
           <select id="dashdev" aria-label="Entity"><option value="">Seluruh building</option></select>
           <button class="btn primary" id="embed">Embed</button>
         </div>
-        <div class="note">Memakai <code>POST /v1/buildings/{id}/dashboards/{dash}/embed</code> → <code>embedUrl</code> sekali pakai (60 detik) → iframe. Butuh scope <code>dashboards</code>, <code>embedUserId</code> di client, dan atribut <code>dashboards</code> di building.</div>
+        <div class="note">Memakai <code>POST /v1/buildings/{id}/dashboards/{dash}/embed</code> → <code>embedUrl</code> sekali pakai (60 detik) → iframe. Butuh scope <code>dashboards</code>. Dashboard gedung = dashboard yang di-assign ke customer pemilik device-nya (atau atribut <code>dashboards</code> di building); user embed dibuat otomatis.</div>
         <div id="dashinfo"></div>
         <iframe id="frame" class="hidden" title="Preview dashboard"></iframe>
       </div>
@@ -657,7 +657,7 @@
       const r = await api('GET', `/v1/buildings/${state.building.id}/dashboards`);
       $('#dashsel').replaceChildren(...(r.data.length ? r.data.map((d) => el('option', { value: d.id }, d.title)) : [el('option', { value: '' }, '(belum ada dashboard)')]));
       $('#embed').disabled = !r.data.length;
-      if (!r.data.length) $('#dashinfo').replaceChildren(el('div', { class: 'note' }, 'Building ini belum punya atribut "dashboards". Daftarkan dengan: npm run setup -- dashboards --building "<nama>" --set <dashUuid> --apply'));
+      if (!r.data.length) $('#dashinfo').replaceChildren(el('div', { class: 'note' }, 'Belum ada dashboard untuk gedung ini. Di TB: assign dashboard ke customer pemilik device gedung ini (Dashboards → Manage assigned customers).'));
     } catch (e) {
       $('#dashsel').replaceChildren(el('option', { value: '' }, '—'));
       $('#embed').disabled = true;
@@ -671,7 +671,7 @@
     try {
       const r = await api('POST', `/v1/buildings/${state.building.id}/dashboards/${dash}/embed`, body);
       $('#dashinfo').replaceChildren(el('div', { class: 'note' },
-        `Link dibuat · berlaku sampai ${new Date(r.ticketExpiresAt).toLocaleTimeString('id-ID')} · sesi sampai ${r.sessionExpiresAt ? new Date(r.sessionExpiresAt).toLocaleTimeString('id-ID') : '(auto refresh)'} · entity ${r.entity.entityType}`));
+        `Link dibuat · berlaku sampai ${new Date(r.ticketExpiresAt).toLocaleTimeString('id-ID')} · sesi sampai ${r.sessionExpiresAt ? new Date(r.sessionExpiresAt).toLocaleTimeString('id-ID') : '(auto refresh)'} · ${r.entity ? `entity ${r.entity.entityType}` : 'state bawaan dashboard'}`));
       const f = $('#frame');
       f.classList.remove('hidden');
       f.src = r.embedUrl;

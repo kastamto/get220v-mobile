@@ -3,9 +3,11 @@
  *
  * Model di ThingsBoard (TB-native, tanpa database tambahan):
  *   Asset type "building"  --Contains-->  Asset (lantai/ruang, opsional, bertingkat)  --Contains-->  Device
- *   Server attribute "dashboards" pada asset building = daftar dashboard gedung itu.
+ *   Server attribute "dashboards" pada asset building = daftar dashboard gedung itu (opsional).
+ *   Tanpa atribut itu, dashboard gedung = dashboard yang di-assign ke customer pemilik device-nya.
  */
-import { TbError } from './tbClient.js';
+import { randomBytes } from 'node:crypto';
+import { TbError, NULL_UUID } from './tbClient.js';
 
 export class ApiError extends Error {
   constructor(status, message) {
@@ -81,6 +83,8 @@ export class Gateway {
     this.topoCache = new Map(); // buildingId -> { value, exp }
     this.topoPending = new Map();
     this.buildingsCache = null;
+    this.ownersCache = new Map(); // buildingId -> { value, exp }
+    this.embedUsers = new Map(); // customerId -> Promise<userId>
   }
 
   // ---------- akses ----------
@@ -385,6 +389,32 @@ export class Gateway {
 
   // ---------- dashboard ----------
 
+  /** Customer pemilik device di building, urut dari yang memiliki device terbanyak. */
+  async ownerCustomers(buildingId) {
+    const c = this.ownersCache.get(buildingId);
+    if (c && c.exp > this.now()) return c.value;
+    const topo = await this.topology(buildingId);
+    const ids = await mapLimit([...topo.devices.keys()], 8, async (id) => {
+      try {
+        const cid = (await this.tb.asTenant('GET', `/api/device/${id}`))?.customerId?.id;
+        return cid && cid !== NULL_UUID ? cid : null;
+      } catch {
+        return null;
+      }
+    });
+    const count = new Map();
+    for (const id of ids) if (id) count.set(id, (count.get(id) ?? 0) + 1);
+    const value = [...count.entries()].sort((a, b) => b[1] - a[1]).map(([id]) => id);
+    this.ownersCache.set(buildingId, { value, exp: this.now() + this.config.cacheSec * 1000 });
+    return value;
+  }
+
+  /**
+   * Dashboard gedung. Sumber:
+   *  - "manual": server attribute "dashboards" pada asset building (kalau diisi);
+   *  - "auto"  : dashboard yang di-assign ke customer pemilik device gedung ini.
+   * Field customerIds dipakai internal untuk memilih user embed.
+   */
   async dashboards(client, buildingId) {
     await this.requireBuilding(client, buildingId);
     const attrs = await this.#tenant('GET', `/api/plugins/telemetry/ASSET/${buildingId}/values/attributes/SERVER_SCOPE?keys=dashboards`);
@@ -393,14 +423,83 @@ export class Gateway {
     const entries = list
       .map((d) => (typeof d === 'string' ? { id: d } : d))
       .filter((d) => d && typeof d.id === 'string' && /^[0-9a-f-]{36}$/i.test(d.id));
-    const infos = await mapLimit(entries, 5, async (d) => {
+    if (entries.length) {
+      const infos = await mapLimit(entries, 5, async (d) => {
+        try {
+          const info = await this.tb.asTenant('GET', `/api/dashboard/info/${d.id}`);
+          return {
+            id: d.id.toLowerCase(),
+            title: d.title ?? info.title,
+            stateId: d.stateId ?? null,
+            source: 'manual',
+            customerIds: (info.assignedCustomers ?? []).map((c) => c.customerId?.id).filter(Boolean),
+          };
+        } catch {
+          return null; // dashboard terhapus -> abaikan
+        }
+      });
+      return infos.filter(Boolean);
+    }
+    const out = new Map();
+    for (const cid of await this.ownerCustomers(buildingId)) {
+      let r;
       try {
-        const info = await this.tb.asTenant('GET', `/api/dashboard/info/${d.id}`);
-        return { id: d.id.toLowerCase(), title: d.title ?? info.title, stateId: d.stateId ?? null };
+        r = await this.tb.asTenant('GET', `/api/customer/${cid}/dashboards?pageSize=100&page=0&sortProperty=title&sortOrder=ASC`);
       } catch {
-        return null; // dashboard terhapus -> abaikan
+        continue;
       }
+      for (const d of r?.data ?? []) {
+        const id = d.id.id.toLowerCase();
+        if (!out.has(id)) out.set(id, { id, title: d.title, stateId: null, source: 'auto', customerIds: [] });
+        out.get(id).customerIds.push(cid);
+      }
+    }
+    return [...out.values()];
+  }
+
+  /** Customer yang dipakai untuk embed: pemilik device gedung yang juga punya akses ke dashboard. */
+  async dashboardCustomer(buildingId, dash) {
+    const owners = await this.ownerCustomers(buildingId);
+    const cid = owners.find((o) => dash.customerIds.includes(o)) ?? dash.customerIds[0];
+    if (!cid) throw new ApiError(400, 'dashboard ini belum di-assign ke customer mana pun di TB (Dashboards → Manage assigned customers)');
+    return cid;
+  }
+
+  /**
+   * User embed read-only per customer. Pakai user yang emailnya diawali "embed" di customer itu;
+   * kalau belum ada, dibuat & diaktifkan otomatis (password acak, tidak pernah disimpan/ditampilkan).
+   */
+  embedUserFor(customerId) {
+    if (!this.embedUsers.has(customerId)) {
+      const p = this.#findOrCreateEmbedUser(customerId).catch((e) => {
+        this.embedUsers.delete(customerId);
+        throw e;
+      });
+      this.embedUsers.set(customerId, p);
+    }
+    return this.embedUsers.get(customerId);
+  }
+
+  async #findOrCreateEmbedUser(customerId) {
+    const r = await this.tb.asTenant('GET', `/api/customer/${customerId}/users?pageSize=100&page=0&textSearch=embed`);
+    const found = (r?.data ?? []).find((u) => u.authority === 'CUSTOMER_USER' && /^embed[-._+]/i.test(u.email ?? ''));
+    if (found) return found.id.id;
+    const host = new URL(this.config.tbPublicUrl).hostname;
+    const user = await this.tb.asTenant('POST', '/api/user?sendActivationMail=false', {
+      email: `embed-${customerId.slice(0, 8)}@${host}`,
+      authority: 'CUSTOMER_USER',
+      customerId: { entityType: 'CUSTOMER', id: customerId },
+      firstName: 'Embed',
+      lastName: 'Dashboard',
+      additionalInfo: { description: 'Dibuat otomatis oleh building-gateway untuk embed dashboard. Jangan dihapus.' },
     });
-    return infos.filter(Boolean);
+    const userId = user.id.id;
+    const link = await this.tb.asTenant('GET', `/api/user/${userId}/activationLink`);
+    const activateToken = new URL(String(link)).searchParams.get('activateToken');
+    if (!activateToken) throw new Error('activationLink TB tanpa activateToken');
+    // password acak memenuhi policy umum (huruf besar/kecil, angka, simbol); tidak disimpan
+    const password = `Aa1!${randomBytes(24).toString('base64url')}`;
+    await this.tb.asTenant('POST', '/api/noauth/activate?sendActivationMail=false', { activateToken, password });
+    return userId;
   }
 }
