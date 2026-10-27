@@ -4,7 +4,15 @@ Widget ini menampilkan halaman `/building-api/admin` di dalam dashboard ThingsBo
 tenant admin bisa membuat, mengubah, merotasi, menonaktifkan, dan menghapus API key aplikasi luar
 langsung dari web TB.
 
-## Pasang (sekali)
+## Pasang cepat: import JSON (disarankan)
+
+1. **Resources → Widgets library → tab Widgets → + → Import widget**, pilih
+   `api_key_manager.widget.json`, lalu Import.
+2. **Dashboards → + → Import dashboard**, pilih `api_keys.dashboard.json`, lalu Import.
+   Dashboard ini memakai widget `tenant.api_key_manager`, jadi langkah 1 harus selesai dulu.
+3. Buka dashboard **API Keys**. Jangan assign dashboard ini ke customer.
+
+## Pasang manual (alternatif)
 
 1. Login ke `https://iot.get220v.com` sebagai **tenant admin**.
 2. **Resources → Widgets library → Widgets bundles**. Buat bundle baru, mis. `Get220v Admin`, lalu buka.

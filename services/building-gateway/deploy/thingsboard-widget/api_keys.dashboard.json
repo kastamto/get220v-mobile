@@ -1,0 +1,89 @@
+{
+  "title": "API Keys",
+  "image": null,
+  "mobileHide": true,
+  "mobileOrder": null,
+  "name": "API Keys",
+  "configuration": {
+    "description": "API Key Manager building-gateway (tenant admin saja, jangan assign ke customer)",
+    "widgets": {
+      "6a1f0c2e-3b4d-4e5f-8a9b-0c1d2e3f4a5b": {
+        "typeFullFqn": "tenant.api_key_manager",
+        "type": "static",
+        "sizeX": 24,
+        "sizeY": 12,
+        "row": 0,
+        "col": 0,
+        "id": "6a1f0c2e-3b4d-4e5f-8a9b-0c1d2e3f4a5b",
+        "config": {
+          "datasources": [],
+          "timewindow": {
+            "realtime": {
+              "timewindowMs": 60000
+            }
+          },
+          "showTitle": false,
+          "backgroundColor": "#ffffff",
+          "color": "rgba(0, 0, 0, 0.87)",
+          "padding": "0px",
+          "settings": {},
+          "title": "API Key Manager",
+          "dropShadow": false,
+          "enableFullscreen": true
+        }
+      }
+    },
+    "states": {
+      "default": {
+        "name": "API Keys",
+        "root": true,
+        "layouts": {
+          "main": {
+            "widgets": {
+              "6a1f0c2e-3b4d-4e5f-8a9b-0c1d2e3f4a5b": {
+                "sizeX": 24,
+                "sizeY": 12,
+                "row": 0,
+                "col": 0
+              }
+            },
+            "gridSettings": {
+              "backgroundColor": "#eeeeee",
+              "columns": 24,
+              "margin": 0,
+              "outerMargin": false,
+              "backgroundSizeMode": "100%",
+              "autoFillHeight": true,
+              "mobileAutoFillHeight": true,
+              "mobileRowHeight": 70
+            }
+          }
+        }
+      }
+    },
+    "entityAliases": {},
+    "filters": {},
+    "timewindow": {
+      "displayValue": "",
+      "selectedTab": 0,
+      "realtime": {
+        "realtimeType": 1,
+        "interval": 1000,
+        "timewindowMs": 60000
+      },
+      "aggregation": {
+        "type": "NONE",
+        "limit": 200
+      }
+    },
+    "settings": {
+      "stateControllerId": "entity",
+      "showTitle": false,
+      "showDashboardsSelect": true,
+      "showEntitiesSelect": true,
+      "showDashboardTimewindow": false,
+      "showDashboardExport": false,
+      "toolbarAlwaysOpen": false
+    }
+  }
+}
