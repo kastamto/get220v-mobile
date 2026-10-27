@@ -62,6 +62,7 @@
   .checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 4px 12px; max-height: 220px; overflow: auto; padding: 6px; border: 1px solid var(--border); border-radius: 6px; }
   .checks label { display: flex; gap: 6px; align-items: center; font-size: 13px; cursor: pointer; }
   .hint { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+  input.bad { outline: 2px solid var(--critical, #c62828); outline-offset: 1px; }
   .keybox { display: flex; gap: 8px; align-items: center; background: var(--surface-2); border: 1px dashed var(--accent); border-radius: 8px; padding: 10px; margin: 8px 0; }
   .keybox code { flex: 1; font-size: 13px; overflow-wrap: anywhere; user-select: all; }
   .warn { color: var(--text-primary); font-size: 13px; }
@@ -213,6 +214,17 @@
     const rpcIn = el('input', { type: 'text', value: (c?.rpcMethods ?? []).join(', '), placeholder: 'mis. setRelay, getStatus (kosong = semua method)' });
     const embedIn = el('input', { type: 'text', value: c?.embedUserId ?? '', placeholder: 'UUID customer user TB read-only (untuk embed dashboard)' });
     const errBox = el('div', { class: 'err', style: 'margin-top:10px' });
+    // ID otomatis dari nama selama ID belum diketik manual
+    const slug = (v) => v.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64);
+    let idTouched = !creating;
+    idIn.oninput = () => { idTouched = true; idIn.classList.remove('bad'); };
+    nameIn.oninput = () => { nameIn.classList.remove('bad'); if (!idTouched) idIn.value = slug(nameIn.value); };
+    embedIn.oninput = () => embedIn.classList.remove('bad');
+    const fail = (input, msg) => {
+      errBox.textContent = msg;
+      if (input) { input.classList.add('bad'); input.scrollIntoView({ block: 'center', behavior: 'smooth' }); input.focus(); }
+      else errBox.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    };
 
     const save = el('button', { class: 'btn primary', onclick: async () => {
       errBox.textContent = '';
@@ -224,8 +236,12 @@
         embedUserId: embedIn.value.trim(),
       };
       if (creating) body.id = idIn.value.trim().toLowerCase();
-      if (!body.buildings.length) return (errBox.textContent = 'Pilih minimal satu gedung.');
-      if (!body.scopes.length) return (errBox.textContent = 'Pilih minimal satu scope.');
+      if (!body.name) return fail(nameIn, 'Nama aplikasi wajib diisi.');
+      if (creating && !/^[a-z0-9][a-z0-9_-]{1,63}$/.test(body.id)) return fail(idIn, 'ID client wajib: huruf kecil, angka, - atau _ (2–64 karakter), mis. muraya-app.');
+      if (!body.buildings.length) return fail(null, 'Pilih minimal satu gedung.');
+      if (!body.scopes.length) return fail(null, 'Pilih minimal satu scope.');
+      if (body.embedUserId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.embedUserId)) return fail(embedIn, 'Embed user ID harus UUID user TB (36 karakter).');
+      if (body.scopes.includes('dashboards') && !body.embedUserId) return fail(embedIn, 'Scope dashboards butuh Embed user ID. Isi, atau hapus centang dashboards.');
       save.disabled = true;
       try {
         if (creating) showKey('API key dibuat', await api('POST', '/admin/v1/clients', body));
@@ -234,8 +250,8 @@
     } }, creating ? 'Buat & tampilkan key' : 'Simpan');
 
     openDialog(creating ? 'Client baru' : `Ubah ${c.name}`, [
-      el('label', { class: 'f' }, 'ID client'), idIn, creating ? el('div', { class: 'hint' }, 'Huruf kecil, angka, - atau _. Tidak bisa diubah setelah dibuat.') : null,
       el('label', { class: 'f' }, 'Nama aplikasi'), nameIn,
+      el('label', { class: 'f' }, 'ID client'), idIn, creating ? el('div', { class: 'hint' }, 'Terisi otomatis dari nama. Huruf kecil, angka, - atau _. Tidak bisa diubah setelah dibuat.') : null,
       el('label', { class: 'f' }, 'Gedung yang boleh diakses'),
       el('label', { style: 'display:flex;gap:6px;align-items:center;margin-bottom:6px;cursor:pointer' }, all, 'Semua gedung (termasuk gedung baru nanti)'),
       bSearch, el('div', { style: 'height:6px' }), bGrid,
@@ -243,6 +259,7 @@
       el('div', { class: 'checks', style: 'max-height:none' }, sChecks.map(({ s, box }) => el('label', {}, box, s, el('span', { class: 'muted', style: 'font-size:11px' }, ` · ${SCOPE_INFO[s] ?? ''}`)))),
       el('label', { class: 'f' }, 'Method RPC yang diizinkan (scope rpc)'), rpcIn,
       el('label', { class: 'f' }, 'Embed user ID (scope dashboards)'), embedIn,
+      el('div', { class: 'hint' }, 'UUID customer user read-only milik customer gedung. Di TB: Customers → (customer) → Manage users → klik user → Copy user Id.'),
       errBox,
     ], [el('button', { class: 'btn', onclick: close }, 'Batal'), save]);
   }
