@@ -1,0 +1,18 @@
+{
+  "name": "get220v-siaga-qr",
+  "version": "1.0.0",
+  "description": "SIAGA server-registered device QR: generate, verify, revoke, reissue, batch (Ed25519, ThingsBoard-scoped)",
+  "private": true,
+  "type": "module",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/index.js",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js",
+    "keygen": "node scripts/keygen.mjs",
+    "backup": "node --disable-warning=ExperimentalWarning scripts/backup.mjs"
+  },
+  "license": "UNLICENSED"
+}

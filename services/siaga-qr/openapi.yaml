@@ -1,0 +1,200 @@
+openapi: 3.0.3
+info:
+  title: SIAGA Device QR
+  version: 1.0.0
+  description: |
+    Label QR device yang diregistrasikan server. Semua endpoint (kecuali health/ready/openapi)
+    memakai JWT ThingsBoard di header `X-Authorization: Bearer <jwt>`.
+    Tenant, customer, actor, kid, waktu terbit dan expiry selalu ditentukan server.
+servers:
+  - url: https://iot.get220v.com/api/siaga/v1
+components:
+  securitySchemes:
+    tbJwt: { type: apiKey, in: header, name: X-Authorization, description: 'Bearer <thingsboard-jwt>' }
+  parameters:
+    labelId: { name: labelId, in: path, required: true, schema: { type: string, format: uuid } }
+    idempotencyKey: { name: Idempotency-Key, in: header, required: false, schema: { type: string, pattern: '^[\w.:-]{8,128}$' } }
+  schemas:
+    Error:
+      type: object
+      properties: { error: { type: string }, message: { type: string } }
+    Issued:
+      type: object
+      properties:
+        labelId: { type: string, format: uuid }
+        qr: { type: string, example: 'siaga://v1/device/<payload>.<signature>' }
+        deviceId: { type: string, format: uuid }
+        deviceName: { type: string }
+        siteId: { type: string, nullable: true }
+        kid: { type: string }
+        issuedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        status: { type: string, enum: [ACTIVE] }
+    Label:
+      type: object
+      description: Tanpa nilai QR lengkap.
+      properties:
+        labelId: { type: string, format: uuid }
+        deviceId: { type: string, format: uuid }
+        deviceName: { type: string }
+        siteId: { type: string, nullable: true }
+        customerId: { type: string, nullable: true }
+        kid: { type: string }
+        status: { type: string, enum: [ACTIVE, REVOKED, EXPIRED, REPLACED] }
+        issuedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        issuedBy: { type: object, properties: { userId: { type: string }, name: { type: string } } }
+        revokedAt: { type: string, nullable: true }
+        revokedBy: { type: string, nullable: true }
+        revokeReason: { type: string, nullable: true }
+        replacedByLabelId: { type: string, nullable: true }
+security: [{ tbJwt: [] }]
+paths:
+  /health:
+    get: { security: [], summary: Liveness, responses: { '200': { description: OK } } }
+  /ready:
+    get: { security: [], summary: Readiness (DB + key), responses: { '200': { description: OK }, '503': { description: Tidak siap } } }
+  /qr/generate:
+    post:
+      summary: Terbitkan label untuk satu device (TENANT_ADMIN)
+      parameters: [{ $ref: '#/components/parameters/idempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deviceId]
+              properties:
+                deviceId: { type: string, format: uuid }
+                validForDays: { type: integer, description: 'Di-clamp ke 1..SIAGA_QR_MAX_VALID_DAYS; default 1825' }
+      responses:
+        '201': { description: Label baru, content: { application/json: { schema: { $ref: '#/components/schemas/Issued' } } } }
+        '200': { description: Replay Idempotency-Key (label yang sama), content: { application/json: { schema: { $ref: '#/components/schemas/Issued' } } } }
+        '403': { description: Bukan TENANT_ADMIN }
+        '404': { description: Device tidak ada di tenant ini }
+        '409': { description: 'Device sudah punya label ACTIVE (pakai reissue); body memuat labelId' }
+        '422': { description: Idempotency-Key dipakai untuk request lain }
+  /qr/verify:
+    post:
+      summary: Verifikasi QR (TENANT_ADMIN atau CUSTOMER_USER)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [qr], properties: { qr: { type: string } } } } }
+      responses:
+        '200':
+          description: Valid
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid: { type: boolean, enum: [true] }
+                  labelId: { type: string }
+                  deviceId: { type: string }
+                  siteId: { type: string, nullable: true }
+                  deviceName: { type: string }
+                  kid: { type: string }
+                  expiresAt: { type: string, format: date-time }
+        '400': { description: 'Malformed / tanda tangan salah / label tidak dikenal: {"valid":false,"message":"QR tidak valid atau tidak dapat digunakan."}' }
+        '403': { description: 'User tidak berhak (customer user menerima pesan generik untuk semua penolakan non-malformed)' }
+        '410': { description: 'Admin saja: label REVOKED/EXPIRED/REPLACED (field status)' }
+  /qr/labels:
+    get:
+      summary: Daftar label tenant (TENANT_ADMIN), cursor (issuedAt, id)
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: cursor, in: query, schema: { type: string } }
+        - { name: deviceId, in: query, schema: { type: string, format: uuid } }
+        - { name: status, in: query, schema: { type: string, enum: [ACTIVE, REVOKED, EXPIRED, REPLACED] } }
+        - { name: query, in: query, schema: { type: string }, description: 'Cari nama device, siteId, labelId atau deviceId' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Label' } }
+                  nextCursor: { type: string, nullable: true }
+  /qr/labels/{labelId}/revoke:
+    post:
+      summary: Cabut label (TENANT_ADMIN, idempoten)
+      parameters: [{ $ref: '#/components/parameters/labelId' }]
+      requestBody:
+        content: { application/json: { schema: { type: object, properties: { reason: { type: string, maxLength: 500 } } } } }
+      responses:
+        '200': { description: Label (status REVOKED, atau status lama bila sudah tidak aktif), content: { application/json: { schema: { $ref: '#/components/schemas/Label' } } } }
+        '404': { description: Label tidak ada di tenant ini }
+  /qr/labels/{labelId}/reissue:
+    post:
+      summary: Ganti label (label lama REPLACED + label baru ACTIVE, atomik)
+      parameters: [{ $ref: '#/components/parameters/labelId' }, { $ref: '#/components/parameters/idempotencyKey' }]
+      requestBody:
+        content: { application/json: { schema: { type: object, properties: { reason: { type: string }, validForDays: { type: integer } } } } }
+      responses:
+        '201': { description: Label baru (+ replacesLabelId), content: { application/json: { schema: { $ref: '#/components/schemas/Issued' } } } }
+        '409': { description: Sudah pernah di-reissue, atau device punya label ACTIVE lain }
+  /qr/generate-batch:
+    post:
+      summary: Registrasi banyak device (TENANT_ADMIN)
+      description: |
+        Satu mode saja: `deviceIds` atau `allTenantDevices: true`. Default `onlyWithoutActiveLabel: true`
+        (device yang sudah punya label ACTIVE dilewati); `false` = label ACTIVE diganti (REISSUED).
+        Sampai SIAGA_QR_SYNC_BATCH_MAX device (default 100) diproses langsung (200); lebih dari itu jadi
+        background job (202) yang dipantau lewat `/qr/jobs/{jobId}`. Setiap device transaksi terpisah.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                deviceIds: { type: array, items: { type: string, format: uuid } }
+                allTenantDevices: { type: boolean }
+                onlyWithoutActiveLabel: { type: boolean, default: true }
+                validForDays: { type: integer }
+      responses:
+        '200':
+          description: Selesai (sinkron)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobId: { type: string }
+                  status: { type: string, enum: [DONE] }
+                  total: { type: integer }
+                  created: { type: integer }
+                  skipped: { type: integer }
+                  failed: { type: integer }
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        deviceId: { type: string }
+                        status: { type: string, enum: [CREATED, REISSUED, SKIPPED_ACTIVE_LABEL, FAILED] }
+                        labelId: { type: string }
+                        error: { type: string }
+        '202': { description: 'Background job: {jobId, status: RUNNING, total, progressUrl}' }
+  /qr/jobs/{jobId}:
+    get:
+      summary: Progres batch job (TENANT_ADMIN, tenant yang sama)
+      parameters: [{ name: jobId, in: path, required: true, schema: { type: string } }]
+      responses: { '200': { description: 'status RUNNING / DONE / FAILED / INTERRUPTED + hitungan + items' }, '404': { description: Tidak ada } }
+  /qr/export:
+    post:
+      summary: Buat link download CSV label untuk dicetak (sekali pakai, singkat)
+      requestBody:
+        content: { application/json: { schema: { type: object, properties: { labelIds: { type: array, items: { type: string } }, jobId: { type: string } } } } }
+      responses:
+        '201': { description: '{downloadPath: "qr/export/<token>", expiresAt, count}' }
+  /qr/export/{token}:
+    get:
+      summary: Unduh CSV (JWT admin yang sama wajib; token sekali pakai)
+      parameters: [{ name: token, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: 'text/csv: labelId,deviceId,deviceName,siteId,status,expiresAt,qr (qr hanya untuk label ACTIVE)' }
+        '410': { description: Link kedaluwarsa / sudah dipakai }
