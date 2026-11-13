@@ -1,0 +1,396 @@
+<script>
+/* ========================================================================
+ *  SIAGA · Pencatatan Meter PLN & PDAM — client logic
+ * ==================================================================== */
+'use strict';
+
+var STATE = {
+  meta:null, buildings:[], building:'ALL', readings:[], chart:null,
+  editId:null, bEditId:null, curView:'dashboard',
+  f:{fotos:[],lat:null,lng:null}, e:{fotos:[],lat:null,lng:null}
+};
+
+function gcall(fn){
+  var args=Array.prototype.slice.call(arguments,1);
+  return new Promise(function(res,rej){
+    google.script.run.withSuccessHandler(res).withFailureHandler(rej)[fn].apply(null,args);
+  });
+}
+function $(s,r){return (r||document).querySelector(s);}
+function $all(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s));}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function fmt(n){return (Number(n)||0).toLocaleString('id-ID',{maximumFractionDigits:2});}
+function rp(n){return 'Rp '+(Math.round(Number(n)||0)).toLocaleString('id-ID');}
+function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+function toast(msg,type){
+  var w=$('#toast'),t=document.createElement('div');
+  t.className='toast '+(type||'');t.textContent=msg;w.appendChild(t);
+  setTimeout(function(){t.style.opacity='0';t.style.transition='opacity .3s';setTimeout(function(){t.remove();},300);},2800);
+}
+function busy(btn,html){btn.disabled=true;btn._t=btn.innerHTML;btn.innerHTML=html||'<span class="spin"></span>';}
+function idle(btn){btn.disabled=false;btn.innerHTML=btn._t;}
+
+/* ---------- tarif (cermin logika server, untuk preview) ---------- */
+function findTarif(gol,va){
+  var g=String(gol||'').toLowerCase(),all=STATE.meta.tarifListrik;
+  var c=all.filter(function(t){return t.golongan.toLowerCase()===g;});if(!c.length)c=all;
+  if(!c.length)return null;
+  var ok=c.filter(function(t){return t.min<=va;}),pool=ok.length?ok:c;
+  return pool.reduce(function(a,t){return ok.length?(t.min>a.min?t:a):(t.min<a.min?t:a);});
+}
+function estElec(b,kwh){
+  if(!b)return 0;var t=findTarif(b.golongan,b.dayaVA);if(!t)return 0;
+  var e=Math.max(0,kwh)*t.tarif+(b.dayaVA/1000)*t.beban;return e*(1+STATE.meta.ppj/100);
+}
+function estAir(b,m3){
+  if(!b)return 0;var k=String(b.kelompokAir||'').toLowerCase();
+  var t=STATE.meta.tarifAir.filter(function(x){return x.kelompok.toLowerCase()===k;})[0];if(!t)return 0;
+  var u=Math.max(0,m3);
+  var s=Math.min(u,t.b1)*t.t1+Math.max(0,Math.min(u,t.b2)-t.b1)*t.t2+Math.max(0,u-t.b2)*t.t3+t.tetap;
+  return s*(1+STATE.meta.ppnAir/100);
+}
+function curBld(){return STATE.buildings.filter(function(b){return b.id===STATE.building;})[0]||null;}
+
+/* ---------- navigasi ---------- */
+function go(view){
+  STATE.curView=view;
+  $all('.view').forEach(function(v){v.classList.toggle('active',v.id==='view-'+view);});
+  $all('.tab').forEach(function(t){t.classList.toggle('active',t.dataset.go===view);});
+  window.scrollTo({top:0,behavior:'smooth'});
+  refresh();
+}
+function refresh(){
+  if(STATE.curView==='dashboard')renderDashboard();
+  if(STATE.curView==='history')renderHistory();
+  if(STATE.curView==='input')renderInputBld();
+}
+
+/* ========================================================================
+ *  BOOT & GEDUNG
+ * ==================================================================== */
+function boot(){
+  gcall('apiBootstrap').then(function(m){
+    STATE.meta=m;STATE.buildings=m.buildings;
+    var saved=lsGet('siaga_bld');
+    STATE.building=(saved&&(saved==='ALL'||m.buildings.some(function(b){return b.id===saved;})))?saved:'ALL';
+    $('#f_periode').value=m.thisMonth;$('#f_tanggal').value=m.today;
+    var sel=$('#b_golongan');sel.innerHTML=m.golongan.map(function(g){return '<option>'+esc(g)+'</option>';}).join('');
+    $('#b_air').innerHTML='<option value="">— tidak ada —</option>'+m.tarifAir.map(function(t){return '<option>'+esc(t.kelompok)+'</option>';}).join('');
+    if(!m.ecmsEnabled)$('#btnSync').style.display='none';
+    renderBldSelect();loadReadings().then(refresh);
+  }).catch(function(e){toast('Gagal memuat: '+(e.message||e),'err');});
+}
+function renderBldSelect(){
+  var opts='<option value="ALL">Semua gedung ('+STATE.buildings.length+')</option>'+
+    STATE.buildings.map(function(b){return '<option value="'+esc(b.id)+'">'+esc(b.nama)+(b.kode&&b.kode!==b.id?' · '+esc(b.kode):'')+'</option>';}).join('');
+  var s=$('#bldSelect');s.innerHTML=opts;s.value=STATE.building;
+  $('#btnEditBld').disabled=STATE.building==='ALL';
+  renderBldInfo();
+}
+function renderBldInfo(){
+  var b=curBld(),box=$('#bldInfo');
+  if(!b){box.classList.remove('show');box.innerHTML='';return;}
+  box.classList.add('show');
+  box.innerHTML=
+    '<span class="pill e">⚡ '+fmt(b.dayaVA)+' VA ('+fmt(b.dayaVA/1000)+' kVA)</span>'+
+    '<span class="pill e">'+esc(b.golongan)+' · '+esc(b.tarifKode||'-')+' · '+rp(b.tarifKwh)+'/kWh</span>'+
+    (b.kelompokAir?'<span class="pill w">💧 '+esc(b.kelompokAir)+'</span>':'')+
+    '<span class="pill src">'+esc(b.sumber||'')+'</span>';
+}
+function onBuildingChange(id){
+  STATE.building=id;lsSet('siaga_bld',id);
+  $('#btnEditBld').disabled=id==='ALL';renderBldInfo();
+  loadReadings().then(refresh);
+}
+function loadReadings(){
+  return gcall('apiGetReadings',STATE.building).then(function(r){STATE.readings=r;}).catch(function(e){toast(e.message,'err');});
+}
+function syncEcms(){
+  var b=$('#btnSync');busy(b,'<span class="spin" style="border-color:rgba(15,23,42,.25);border-top-color:#0f172a"></span>');
+  gcall('apiSyncEcms').then(function(r){
+    STATE.buildings=r.buildings;renderBldSelect();
+    toast('eCMS: '+r.added+' gedung baru, '+r.updated+' diperbarui','ok');
+  }).catch(function(e){toast(e.message||String(e),'err');}).then(function(){idle(b);});
+}
+
+/* ---------- modal gedung ---------- */
+function openBuilding(id){
+  var b=id&&id!=='ALL'?STATE.buildings.filter(function(x){return x.id===id;})[0]:null;
+  STATE.bEditId=b?b.id:null;
+  $('#bTitle').textContent=b?'Edit gedung':'Tambah gedung baru';
+  $('#b_kode').value=b?b.kode:'';$('#b_nama').value=b?b.nama:'';
+  $('#b_alamat').value=b?b.alamat:'';$('#b_kota').value=b?b.kota:'';
+  $('#b_golongan').value=b?b.golongan:STATE.meta.golongan[0];
+  $('#b_daya').value=b?b.dayaVA:'';$('#b_air').value=b?b.kelompokAir:'';
+  previewBld();
+  $('#bModalBack').classList.add('show');document.body.style.overflow='hidden';
+}
+function closeBuilding(){$('#bModalBack').classList.remove('show');document.body.style.overflow='';}
+function previewBld(){
+  var va=parseFloat($('#b_daya').value),box=$('#b_preview');
+  if(isNaN(va)||va<=0){box.innerHTML='Isi daya terpasang untuk melihat tarif otomatis.';return;}
+  var t=findTarif($('#b_golongan').value,va);
+  box.innerHTML='Daya <b>'+fmt(va)+' VA</b> = <b>'+fmt(va/1000)+' kVA</b> · kapasitas rata-rata ±<b>'+fmt(va/1000*STATE.meta.pf)+' kW</b> (pf '+STATE.meta.pf+')<br>'+
+    (t?'Tarif: <b>'+esc(t.kode)+'</b> · <b>'+rp(t.tarif)+'</b>/kWh'+(t.beban?' · beban '+rp(t.beban)+'/kVA':'')+(t.ket?' ('+esc(t.ket)+')':''):'<b style="color:var(--warn)">Tarif belum ada di sheet TarifListrik.</b>');
+}
+function submitBuilding(){
+  var btn=$('#btnBSave');
+  var d={kode:$('#b_kode').value,nama:$('#b_nama').value,alamat:$('#b_alamat').value,kota:$('#b_kota').value,
+         golongan:$('#b_golongan').value,dayaVA:$('#b_daya').value,kelompokAir:$('#b_air').value};
+  if(!d.nama.trim()){toast('Nama gedung wajib diisi','err');return;}
+  if(!(parseFloat(d.dayaVA)>0)){toast('Daya terpasang wajib diisi','err');return;}
+  busy(btn);
+  var p=STATE.bEditId?gcall('apiUpdateBuilding',STATE.bEditId,d):gcall('apiAddBuilding',d);
+  p.then(function(r){
+    STATE.buildings=r.buildings;STATE.building=r.newId;lsSet('siaga_bld',r.newId);
+    renderBldSelect();closeBuilding();toast('Gedung tersimpan','ok');
+    loadReadings().then(refresh);
+  }).catch(function(e){toast(e.message||String(e),'err');}).then(function(){idle(btn);});
+}
+
+/* ========================================================================
+ *  DASHBOARD
+ * ==================================================================== */
+function renderDashboard(){
+  gcall('apiGetDashboard',STATE.building).then(function(d){
+    $('#kpi-elec').innerHTML=fmt(d.kwhLast)+'<span class="unit">kWh</span>';
+    $('#kpi-water').innerHTML=fmt(d.airLast)+'<span class="unit">m³</span>';
+    $('#kpi-elec-avg').innerHTML=fmt(d.kwhAvg)+'<span class="unit">kWh</span>';
+    $('#kpi-water-avg').innerHTML=fmt(d.airAvg)+'<span class="unit">m³</span>';
+    $('#kpi-elec-cost').textContent=rp(d.biayaListrikLast);
+    $('#kpi-water-cost').textContent=rp(d.biayaAirLast);
+    $('#kpi-period').textContent=d.lastPeriode;$('#kpi-period2').textContent=d.lastPeriode;
+    $('#kpi-count').textContent=d.count+' periode';
+    renderDelta('#kpi-elec-delta',d.kwhDelta);renderDelta('#kpi-water-delta',d.airDelta);
+    var l=d.loadLast;
+    $('#kpi-load').innerHTML=fmt(l)+'<span class="unit">%</span>';
+    var bar=$('#kpi-load-bar');bar.style.width=Math.min(100,l)+'%';bar.className=l>=80?'hi':'';
+    $('#kpi-load-meta').innerHTML='Daya terpasang <b>'+fmt(d.dayaVA)+' VA</b> · '+
+      (l>=80?'<span class="chip warn">Tinggi — pertimbangkan tambah daya</span>':'<span class="chip flat">aman</span>');
+    drawChart(d.series);
+  }).catch(function(e){toast(e.message||String(e),'err');});
+}
+function renderDelta(sel,delta){
+  var el=$(sel);
+  if(delta==null){el.className='chip flat';el.textContent='baseline';return;}
+  if(delta>0){el.className='chip up';el.textContent='▲ '+fmt(Math.abs(delta))+'%';}
+  else if(delta<0){el.className='chip down';el.textContent='▼ '+fmt(Math.abs(delta))+'%';}
+  else{el.className='chip flat';el.textContent='0%';}
+}
+function drawChart(series){
+  if(STATE.chart){STATE.chart.destroy();STATE.chart=null;}
+  if(!series.length){$('#chartEmpty').style.display='flex';return;}
+  $('#chartEmpty').style.display='none';
+  STATE.chart=new Chart($('#trendChart').getContext('2d'),{
+    type:'bar',
+    data:{labels:series.map(function(s){return s.label;}),datasets:[
+      {label:'Listrik (kWh)',data:series.map(function(s){return s.kwh;}),backgroundColor:'#f59e0b',borderRadius:6,maxBarThickness:26,yAxisID:'y'},
+      {label:'Air (m³)',data:series.map(function(s){return s.air;}),type:'line',borderColor:'#2563eb',backgroundColor:'rgba(37,99,235,.12)',borderWidth:2.5,tension:.35,pointRadius:3,pointBackgroundColor:'#2563eb',fill:true,yAxisID:'y1'}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:false},tooltip:{backgroundColor:'#0f172a',padding:11,cornerRadius:9,
+        callbacks:{label:function(c){return ' '+c.dataset.label.split(' ')[0]+': '+fmt(c.parsed.y)+(c.datasetIndex===0?' kWh':' m³');}}}},
+      scales:{x:{grid:{display:false},ticks:{font:{size:11},color:'#94a3b8'}},
+        y:{position:'left',beginAtZero:true,grid:{color:'#eef2f5'},ticks:{font:{size:11},color:'#b45309'},title:{display:true,text:'kWh',color:'#b45309',font:{size:11,weight:'700'}}},
+        y1:{position:'right',beginAtZero:true,grid:{display:false},ticks:{font:{size:11},color:'#1d4ed8'},title:{display:true,text:'m³',color:'#1d4ed8',font:{size:11,weight:'700'}}}}}
+  });
+}
+
+/* ========================================================================
+ *  FOTO & GEO
+ * ==================================================================== */
+function compressImage(file,maxPx){
+  return new Promise(function(resolve,reject){
+    var rd=new FileReader();
+    rd.onload=function(){
+      var img=new Image();
+      img.onload=function(){
+        var sc=Math.min(1,maxPx/Math.max(img.width,img.height));
+        var cv=document.createElement('canvas');cv.width=Math.round(img.width*sc);cv.height=Math.round(img.height*sc);
+        cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);
+        resolve(cv.toDataURL('image/jpeg',0.8));
+      };
+      img.onerror=function(){reject(new Error('File bukan gambar yang valid'));};
+      img.src=rd.result;
+    };
+    rd.onerror=function(){reject(new Error('Gagal membaca file'));};
+    rd.readAsDataURL(file);
+  });
+}
+function renderPhotoGrid(ns){
+  var grid=$('#'+ns+'_photoGrid');if(!grid)return;var arr=STATE[ns].fotos;
+  grid.innerHTML=arr.map(function(f,i){
+    if(f.uploading)return '<div class="pthumb"><img src="'+esc(f.preview)+'"><div class="up"><span class="spin" style="border-color:rgba(15,23,42,.2);border-top-color:var(--brand)"></span></div></div>';
+    return '<div class="pthumb"><img src="'+esc(f.thumb||f.preview)+'" onclick="window.open(\''+esc(f.url)+'\',\'_blank\')" loading="lazy"><button type="button" class="rm" onclick="removePhoto(\''+ns+'\','+i+')">×</button></div>';
+  }).join('');
+  grid.classList.toggle('show',arr.length>0);
+  var cnt=arr.filter(function(f){return f.id;}).length,btn=$('#'+ns+'_fotoBtn'),lbl=$('#'+ns+'_fotoLabel');
+  btn.classList.toggle('filled',cnt>0);lbl.textContent=cnt>0?cnt+' foto tersimpan ✓':'Ambil / pilih foto';
+}
+function handlePhoto(ns,files){
+  if(!files||!files.length)return;
+  Array.prototype.slice.call(files).forEach(function(file){
+    var slot={uploading:true,preview:'',thumb:'',url:'',id:''};STATE[ns].fotos.push(slot);
+    compressImage(file,1280).then(function(u){slot.preview=u;renderPhotoGrid(ns);return gcall('apiUploadPhoto',u,'meter_'+Date.now()+'.jpg');})
+    .then(function(r){slot.uploading=false;slot.id=r.fileId;slot.url=r.url;slot.thumb=r.thumb;renderPhotoGrid(ns);toast('Foto terunggah','ok');})
+    .catch(function(err){var i=STATE[ns].fotos.indexOf(slot);if(i>-1)STATE[ns].fotos.splice(i,1);renderPhotoGrid(ns);toast('Gagal unggah foto: '+(err.message||err),'err');});
+  });
+  renderPhotoGrid(ns);var inp=$('#'+ns+'_fotoFile');if(inp)inp.value='';
+}
+function removePhoto(ns,i){STATE[ns].fotos.splice(i,1);renderPhotoGrid(ns);}
+function captureGeo(ns){
+  if(!navigator.geolocation){toast('Perangkat tidak mendukung GPS','err');return;}
+  var btn=$('#'+ns+'_geoBtn'),lbl=$('#'+ns+'_geoLabel');lbl.textContent='Mengambil…';
+  navigator.geolocation.getCurrentPosition(function(p){
+    STATE[ns].lat=p.coords.latitude;STATE[ns].lng=p.coords.longitude;
+    $('#'+ns+'_geoText').textContent=p.coords.latitude.toFixed(6)+', '+p.coords.longitude.toFixed(6)+'  (±'+Math.round(p.coords.accuracy)+' m)';
+    $('#'+ns+'_geoTag').classList.add('show');btn.classList.add('filled');lbl.textContent='Lokasi tertag ✓';toast('Lokasi tersimpan','ok');
+  },function(err){lbl.textContent='Tag lokasi GPS';toast('Gagal ambil lokasi: '+err.message,'err');},{enableHighAccuracy:true,timeout:10000,maximumAge:0});
+}
+function removeGeo(ns){
+  STATE[ns].lat=null;STATE[ns].lng=null;$('#'+ns+'_geoTag').classList.remove('show');
+  $('#'+ns+'_geoBtn').classList.remove('filled');$('#'+ns+'_geoLabel').textContent='Tag lokasi GPS';
+}
+
+/* ========================================================================
+ *  INPUT
+ * ==================================================================== */
+function renderInputBld(){
+  var b=curBld(),box=$('#inputBld');
+  if(!b){box.innerHTML='Pilih gedung di atas — atau tekan <b>+ Baru</b> bila belum terdaftar.';return;}
+  box.innerHTML='<b>'+esc(b.nama)+'</b><br>Daya terpasang <b>'+fmt(b.dayaVA)+' VA</b> · '+esc(b.golongan)+' <b>'+esc(b.tarifKode||'')+'</b> · '+rp(b.tarifKwh)+'/kWh'+(b.kelompokAir?' · PDAM '+esc(b.kelompokAir):'');
+  liveCalc();
+}
+function lastReading(){return STATE.building==='ALL'?null:STATE.readings[0];}
+function liveCalc(){
+  var b=curBld(),prevRec=lastReading();
+  var kn=parseFloat($('#f_kwhNow').value),an=parseFloat($('#f_airNow').value);
+  var kp=parseFloat($('#f_kwhPrev').value),ap=parseFloat($('#f_airPrev').value);
+  if(isNaN(kp))kp=prevRec?prevRec.kwhNow:NaN;
+  if(isNaN(ap))ap=prevRec?prevRec.airNow:NaN;
+  setLive('#live-elec',kn,kp,'kWh','elec',b,estElec);
+  setLive('#live-water',an,ap,'m³','water',b,estAir);
+}
+function setLive(sel,now,prev,unit,cls,b,estFn){
+  var el=$(sel);
+  if(isNaN(now)){el.textContent='';return;}
+  if(isNaN(prev)){el.className='live '+cls;el.textContent='Periode pertama gedung — pemakaian dihitung dari meter awal (opsional).';return;}
+  var use=Math.round((now-prev)*100)/100;
+  if(use<0){el.className='live warn';el.textContent='⚠ Pemakaian negatif ('+fmt(use)+' '+unit+') — cek angka meter / reset meter.';return;}
+  el.className='live '+cls;
+  el.textContent='Pemakaian: '+fmt(use)+' '+unit+' ('+fmt(prev)+' → '+fmt(now)+')'+(b?' · estimasi '+rp(estFn(b,use)):'');
+}
+function submitReading(){
+  var b=curBld();
+  if(!b){toast('Pilih gedung terlebih dahulu (bukan "Semua gedung")','err');return;}
+  var btn=$('#btnSave');
+  var d={buildingId:b.id,periode:$('#f_periode').value,tanggal:$('#f_tanggal').value,pencatat:$('#f_pencatat').value,
+    kwhNow:$('#f_kwhNow').value,airNow:$('#f_airNow').value,kwhPrev:$('#f_kwhPrev').value,airPrev:$('#f_airPrev').value,
+    fotos:STATE.f.fotos.filter(function(f){return f.id;}).map(function(f){return f.id;}),
+    lat:STATE.f.lat,lng:STATE.f.lng,catatan:$('#f_catatan').value};
+  if(!d.periode){toast('Periode wajib diisi','err');return;}
+  if(!d.pencatat.trim()){toast('Nama pencatat wajib diisi','err');return;}
+  if(d.kwhNow===''){toast('Angka meter kWh wajib diisi','err');return;}
+  if(d.airNow===''){toast('Angka meter air wajib diisi','err');return;}
+  if(STATE.f.fotos.some(function(f){return f.uploading;})){toast('Tunggu foto selesai diunggah','err');return;}
+  busy(btn,'<span class="spin"></span> Menyimpan…');
+  gcall('apiAddReading',d).then(function(rows){
+    STATE.readings=rows;toast('Pencatatan tersimpan','ok');resetForm();go('dashboard');
+  }).catch(function(e){toast(e.message||String(e),'err');}).then(function(){idle(btn);});
+}
+function resetForm(){
+  ['f_kwhNow','f_airNow','f_kwhPrev','f_airPrev','f_catatan'].forEach(function(id){$('#'+id).value='';});
+  $('#f_periode').value=STATE.meta.thisMonth;$('#f_tanggal').value=STATE.meta.today;
+  $('#live-elec').textContent='';$('#live-water').textContent='';
+  STATE.f.fotos=[];renderPhotoGrid('f');removeGeo('f');
+}
+
+/* ========================================================================
+ *  RIWAYAT
+ * ==================================================================== */
+function renderHistory(){
+  gcall('apiGetReadings',STATE.building).then(function(rows){
+    STATE.readings=rows;var box=$('#histList');
+    if(!rows.length){box.innerHTML='<div class="empty"><div class="ic">📋</div><h3>Belum ada pencatatan</h3><p>Mulai catat meter listrik &amp; air untuk gedung ini.</p><button class="btn btn-primary" onclick="go(\'input\')">Catat sekarang</button></div>';return;}
+    box.innerHTML=rows.map(recCard).join('');
+  }).catch(function(e){toast(e.message||String(e),'err');});
+}
+function recCard(r){
+  var media='';
+  (r.fotos||[]).forEach(function(f){media+='<img src="'+esc(f.thumb)+'" onclick="window.open(\''+esc(f.url)+'\',\'_blank\')" alt="foto meter" loading="lazy">';});
+  if(r.lat!=null&&r.lng!=null)media+='<a class="geo" href="https://www.google.com/maps?q='+r.lat+','+r.lng+'" target="_blank">📍 '+r.lat.toFixed(5)+', '+r.lng.toFixed(5)+'</a>';
+  return '<div class="rec">'+
+    '<div class="rec-top"><div><div class="rec-period">'+esc(r.periodeLabel)+'</div>'+
+      '<div class="rec-bld">'+esc(r.gedung)+'</div>'+
+      '<div class="rec-by">Dicatat '+esc(r.tanggal)+' · '+esc(r.pencatat)+'</div></div>'+
+      '<button class="btn btn-ghost btn-sm" onclick="openEdit(\''+r.id+'\')">Edit</button></div>'+
+    '<div class="rec-grid">'+
+      '<div class="rec-cell elec"><div class="rl">⚡ Listrik</div>'+
+        '<div class="ru" style="'+(r.kwhUsage<0?'color:#dc2626':'')+'">'+fmt(r.kwhUsage)+' <small>kWh</small></div>'+
+        '<div class="rr">meter '+fmt(r.kwhPrev)+' → '+fmt(r.kwhNow)+'</div>'+
+        '<div class="rc">'+rp(r.biayaListrik)+'</div><div class="rr">'+esc(r.tarifKode)+' · '+rp(r.tarifKwh)+'/kWh · beban '+fmt(r.loadPct)+'%</div></div>'+
+      '<div class="rec-cell water"><div class="rl">💧 Air</div>'+
+        '<div class="ru" style="'+(r.airUsage<0?'color:#dc2626':'')+'">'+fmt(r.airUsage)+' <small>m³</small></div>'+
+        '<div class="rr">meter '+fmt(r.airPrev)+' → '+fmt(r.airNow)+'</div>'+
+        '<div class="rc">'+rp(r.biayaAir)+'</div></div>'+
+    '</div>'+(media?'<div class="rec-media">'+media+'</div>':'')+
+    (r.catatan?'<div class="rec-foot">📝 '+esc(r.catatan)+'</div>':'')+'</div>';
+}
+
+/* ---------- edit pencatatan ---------- */
+function openEdit(id){
+  var r=STATE.readings.filter(function(x){return x.id===id;})[0];if(!r)return;
+  STATE.editId=id;
+  $('#e_gedung').textContent='· '+r.gedung;
+  $('#e_periode').value=r.periode;$('#e_tanggal').value=r.tanggal;$('#e_pencatat').value=r.pencatat;
+  $('#e_kwhNow').value=r.kwhNow;$('#e_airNow').value=r.airNow;$('#e_catatan').value=r.catatan||'';
+  STATE.e.fotos=(r.fotos||[]).map(function(f){return{uploading:false,id:f.id,url:f.url,thumb:f.thumb,preview:f.thumb};});
+  renderPhotoGrid('e');removeGeo('e');
+  if(r.lat!=null&&r.lng!=null){
+    STATE.e.lat=r.lat;STATE.e.lng=r.lng;
+    $('#e_geoText').textContent=r.lat.toFixed(6)+', '+r.lng.toFixed(6);$('#e_geoTag').classList.add('show');
+    $('#e_geoBtn').classList.add('filled');$('#e_geoLabel').textContent='Lokasi tertag ✓';
+  }
+  $('#modalBack').classList.add('show');document.body.style.overflow='hidden';
+}
+function closeEdit(){$('#modalBack').classList.remove('show');document.body.style.overflow='';STATE.editId=null;}
+function submitEdit(){
+  var id=STATE.editId;if(!id)return;var btn=$('#btnUpdate');
+  var d={periode:$('#e_periode').value,tanggal:$('#e_tanggal').value,pencatat:$('#e_pencatat').value,
+    kwhNow:$('#e_kwhNow').value,airNow:$('#e_airNow').value,
+    fotos:STATE.e.fotos.filter(function(f){return f.id;}).map(function(f){return f.id;}),
+    lat:STATE.e.lat,lng:STATE.e.lng,catatan:$('#e_catatan').value,listFilter:STATE.building};
+  busy(btn);
+  gcall('apiUpdateReading',id,d).then(function(rows){STATE.readings=rows;toast('Perubahan disimpan','ok');closeEdit();renderHistory();})
+    .catch(function(e){toast(e.message||String(e),'err');}).then(function(){idle(btn);});
+}
+function deleteCurrent(){
+  var id=STATE.editId;if(!id)return;
+  if(!confirm('Hapus pencatatan ini? Pemakaian periode setelahnya dihitung ulang.'))return;
+  var btn=$('#btnDelete');busy(btn);
+  gcall('apiDeleteReading',id,STATE.building).then(function(rows){STATE.readings=rows;toast('Pencatatan dihapus','ok');closeEdit();renderHistory();})
+    .catch(function(e){toast(e.message||String(e),'err');}).then(function(){idle(btn);});
+}
+
+/* ---------- export CSV ---------- */
+function exportCsv(){
+  if(!STATE.readings.length){toast('Belum ada data untuk diekspor','err');return;}
+  var head=['Gedung','Kode','Daya VA','Periode','Tanggal','Pencatat','kWh Meter','kWh Prev','Pemakaian kWh','Tarif/kWh','Biaya Listrik','Beban %','Air Meter','Air Prev','Pemakaian m3','Biaya Air','Catatan'];
+  var rows=STATE.readings.slice().sort(function(a,b){return a.gedung.localeCompare(b.gedung)||a.periode.localeCompare(b.periode);}).map(function(r){
+    return [r.gedung,r.kode,r.dayaVA,r.periode,r.tanggal,r.pencatat,r.kwhNow,r.kwhPrev,r.kwhUsage,r.tarifKwh,r.biayaListrik,r.loadPct,r.airNow,r.airPrev,r.airUsage,r.biayaAir,(r.catatan||'').replace(/[\r\n]+/g,' ')];
+  });
+  var csv=[head].concat(rows).map(function(row){return row.map(function(c){var s=String(c==null?'':c);return /[",\n;]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}).join(',');}).join('\r\n');
+  var url=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8;'}));
+  var a=document.createElement('a');a.href=url;a.download='Pencatatan_Meter_'+STATE.meta.today+'.csv';
+  document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast('CSV diunduh','ok');
+}
+
+/* ---------- init ---------- */
+window.addEventListener('DOMContentLoaded',function(){
+  ['f_kwhNow','f_airNow','f_kwhPrev','f_airPrev'].forEach(function(id){$('#'+id).addEventListener('input',liveCalc);});
+  $('#f_fotoFile').addEventListener('change',function(e){handlePhoto('f',e.target.files);});
+  $('#e_fotoFile').addEventListener('change',function(e){handlePhoto('e',e.target.files);});
+  boot();
+});
+</script>

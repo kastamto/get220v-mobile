@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+  <?!= include('Stylesheet'); ?>
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="mark">SIAGA</span><span class="div"></span>
+      <div class="sub"><div class="o">Meter PLN &amp; PDAM</div><div class="p">Pencatatan bulanan per gedung</div></div>
+    </div>
+    <div class="rukita">
+      <svg class="chev" viewBox="0 0 24 24" fill="none"><path d="M4 14L12 6l8 8" stroke="#0fa69a" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 18l8-8 8 8" stroke="#0b7a71" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" opacity=".45"/></svg>
+      <span class="word">Rukita</span>
+    </div>
+  </header>
+
+  <div class="wrap">
+
+    <!-- ============ PEMILIH GEDUNG (global) ============ -->
+    <div class="bldbar">
+      <div class="section-title" style="margin-bottom:8px">Gedung</div>
+      <div class="bldrow">
+        <select class="select" id="bldSelect" onchange="onBuildingChange(this.value)"></select>
+        <button class="btn btn-ghost btn-sm" onclick="openBuilding()" title="Tambah gedung baru">+ Baru</button>
+        <button class="btn btn-ghost btn-sm" id="btnEditBld" onclick="openBuilding(STATE.building)" title="Edit gedung">Edit</button>
+        <button class="btn btn-ghost btn-sm" id="btnSync" onclick="syncEcms()" title="Sinkron dari eCMS">⟳ eCMS</button>
+      </div>
+      <div class="bldinfo" id="bldInfo"></div>
+    </div>
+
+    <!-- ============ DASHBOARD ============ -->
+    <section class="view active" id="view-dashboard">
+      <div class="section-title">Ringkasan · <span id="kpi-period2">—</span></div>
+      <div class="kpi-grid">
+        <div class="kpi elec">
+          <div class="cap"><span class="dot"></span>Listrik</div>
+          <div class="val" id="kpi-elec">0<span class="unit">kWh</span></div>
+          <div class="meta"><span id="kpi-elec-delta" class="chip flat">baseline</span> vs bln lalu</div>
+          <div class="meta"><b id="kpi-elec-cost">Rp 0</b> estimasi</div>
+        </div>
+        <div class="kpi water">
+          <div class="cap"><span class="dot"></span>Air</div>
+          <div class="val" id="kpi-water">0<span class="unit">m³</span></div>
+          <div class="meta"><span id="kpi-water-delta" class="chip flat">baseline</span> vs bln lalu</div>
+          <div class="meta"><b id="kpi-water-cost">Rp 0</b> estimasi</div>
+        </div>
+        <div class="kpi load span2">
+          <div class="cap"><span class="dot"></span>Beban rata-rata vs daya terpasang</div>
+          <div class="val" id="kpi-load">0<span class="unit">%</span></div>
+          <div class="bar"><i id="kpi-load-bar" style="width:0"></i></div>
+          <div class="meta" id="kpi-load-meta">—</div>
+        </div>
+        <div class="kpi elec kpi-mini"><div class="cap"><span class="dot"></span>Rata-rata listrik</div><div class="val" id="kpi-elec-avg">0<span class="unit">kWh</span></div></div>
+        <div class="kpi water kpi-mini"><div class="cap"><span class="dot"></span>Rata-rata air</div><div class="val" id="kpi-water-avg">0<span class="unit">m³</span></div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>Tren pemakaian bulanan</h3>
+          <div class="legend"><span><i class="e"></i>Listrik</span><span><i class="w"></i>Air</span></div></div>
+        <div class="chart-box">
+          <canvas id="trendChart"></canvas>
+          <div id="chartEmpty" class="empty" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;flex-direction:column"><div class="ic">📈</div><p>Tren muncul setelah ada pencatatan.</p></div>
+        </div>
+        <div style="margin-top:10px;font-size:12px;color:var(--muted)">Total <b id="kpi-count" style="color:var(--ink-soft)">0 periode</b> · terakhir <b id="kpi-period" style="color:var(--ink-soft)">—</b></div>
+      </div>
+      <button class="btn btn-primary btn-block" style="margin-top:14px" onclick="go('input')">+ Catat periode baru</button>
+    </section>
+
+    <!-- ============ INPUT ============ -->
+    <section class="view" id="view-input">
+      <div class="section-title">Form pencatatan meter</div>
+      <div class="card" style="margin-top:0">
+        <div class="form-grid">
+          <div class="field full"><div class="calc-box" id="inputBld">Pilih gedung di atas — atau tekan <b>+ Baru</b> bila belum terdaftar.</div></div>
+          <div class="field"><label>Periode <span class="req">*</span></label><input class="input" type="month" id="f_periode"></div>
+          <div class="field"><label>Tanggal catat <span class="req">*</span></label><input class="input" type="date" id="f_tanggal"></div>
+          <div class="field full"><label>Nama pencatat <span class="req">*</span></label><input class="input" type="text" id="f_pencatat" placeholder="mis. Ahmad Chumaidi" autocomplete="name"></div>
+
+          <div class="field"><label>Meter listrik (PLN) <span class="req">*</span></label>
+            <div class="input-group"><input class="input" type="number" inputmode="decimal" step="any" id="f_kwhNow" placeholder="0"><span class="suffix">kWh</span></div></div>
+          <div class="field"><label>Meter air (PDAM) <span class="req">*</span></label>
+            <div class="input-group"><input class="input" type="number" inputmode="decimal" step="any" id="f_airNow" placeholder="0"><span class="suffix">m³</span></div></div>
+          <div class="field full"><div class="live elec" id="live-elec"></div><div class="live water" id="live-water"></div></div>
+
+          <div class="field"><label>Meter awal listrik</label>
+            <div class="input-group"><input class="input" type="number" inputmode="decimal" step="any" id="f_kwhPrev" placeholder="opsional"><span class="suffix">kWh</span></div>
+            <span class="hint">Hanya periode pertama gedung (baseline).</span></div>
+          <div class="field"><label>Meter awal air</label>
+            <div class="input-group"><input class="input" type="number" inputmode="decimal" step="any" id="f_airPrev" placeholder="opsional"><span class="suffix">m³</span></div>
+            <span class="hint">Berikutnya dihitung otomatis.</span></div>
+
+          <div class="field full">
+            <label>Bukti foto meter &amp; lokasi</label>
+            <div class="capture-row">
+              <label class="cap-btn" id="f_fotoBtn">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M3 8a2 2 0 012-2h2l1.5-2h7L18 6h1a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" stroke-linejoin="round"/><circle cx="12" cy="12.5" r="3.2"/></svg>
+                <span id="f_fotoLabel">Ambil / pilih foto</span>
+                <input type="file" accept="image/*" multiple id="f_fotoFile">
+              </label>
+              <button type="button" class="cap-btn" id="f_geoBtn" onclick="captureGeo('f')">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M12 21s7-6.3 7-11a7 7 0 10-14 0c0 4.7 7 11 7 11z" stroke-linejoin="round"/><circle cx="12" cy="10" r="2.4"/></svg>
+                <span id="f_geoLabel">Tag lokasi GPS</span>
+              </button>
+            </div>
+            <div class="photo-grid" id="f_photoGrid"></div>
+            <div class="photo-hint">Bisa lebih dari satu foto — meter listrik, meter air, panel.</div>
+            <div class="geo-tag" id="f_geoTag"><span>📍 <b id="f_geoText"></b></span><button type="button" class="rm" onclick="removeGeo('f')">hapus</button></div>
+          </div>
+          <div class="field full"><label>Catatan</label><textarea class="textarea" id="f_catatan" placeholder="mis. meter listrik di belakang dapur"></textarea></div>
+        </div>
+        <button class="btn btn-primary btn-block" id="btnSave" style="margin-top:16px" onclick="submitReading()">Simpan pencatatan</button>
+      </div>
+    </section>
+
+    <!-- ============ RIWAYAT ============ -->
+    <section class="view" id="view-history">
+      <div class="hist-toolbar">
+        <div class="section-title" style="margin:0">Riwayat pencatatan</div>
+        <button class="btn btn-ghost btn-sm" onclick="exportCsv()">⤓ Ekspor CSV</button>
+      </div>
+      <div id="histList"></div>
+    </section>
+  </div>
+
+  <nav class="tabbar">
+    <button class="tab active" data-go="dashboard" onclick="go('dashboard')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Dashboard</button>
+    <button class="tab" data-go="input" onclick="go('input')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8" stroke-linecap="round"/></svg>Catat</button>
+    <button class="tab" data-go="history" onclick="go('history')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round"/></svg>Riwayat</button>
+  </nav>
+
+  <!-- ============ MODAL GEDUNG ============ -->
+  <div class="modal-back" id="bModalBack">
+    <div class="modal">
+      <h3 id="bTitle">Tambah gedung</h3>
+      <div class="form-grid">
+        <div class="field"><label>Kode gedung</label><input class="input" id="b_kode" placeholder="opsional / otomatis"></div>
+        <div class="field"><label>Nama gedung <span class="req">*</span></label><input class="input" id="b_nama" placeholder="mis. Rukita Onyx Biak Cideng"></div>
+        <div class="field"><label>Alamat</label><input class="input" id="b_alamat"></div>
+        <div class="field"><label>Kota</label><input class="input" id="b_kota"></div>
+        <div class="field"><label>Golongan tarif PLN</label><select class="select" id="b_golongan" onchange="previewBld()"></select></div>
+        <div class="field"><label>Daya terpasang <span class="req">*</span></label>
+          <div class="input-group"><input class="input" type="number" inputmode="numeric" id="b_daya" list="dayaList" placeholder="mis. 11000" oninput="previewBld()"><span class="suffix">VA</span></div>
+          <datalist id="dayaList"><option value="450"><option value="900"><option value="1300"><option value="2200"><option value="3500"><option value="4400"><option value="5500"><option value="6600"><option value="7700"><option value="10600"><option value="11000"><option value="13200"><option value="16500"><option value="23000"><option value="33000"><option value="41500"><option value="53000"><option value="66000"><option value="82500"><option value="105000"><option value="131000"><option value="164000"><option value="197000"></datalist>
+        </div>
+        <div class="field full"><label>Kelompok pelanggan PDAM</label><select class="select" id="b_air" onchange="previewBld()"></select></div>
+        <div class="field full"><div class="calc-box" id="b_preview">—</div></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeBuilding()">Batal</button>
+        <button class="btn btn-primary" id="btnBSave" onclick="submitBuilding()">Simpan gedung</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ MODAL EDIT PENCATATAN ============ -->
+  <div class="modal-back" id="modalBack">
+    <div class="modal">
+      <h3>Edit pencatatan <span id="e_gedung" style="color:var(--brand-ink);font-size:14px"></span></h3>
+      <div class="form-grid">
+        <div class="field"><label>Periode</label><input class="input" type="month" id="e_periode"></div>
+        <div class="field"><label>Tanggal</label><input class="input" type="date" id="e_tanggal"></div>
+        <div class="field full"><label>Pencatat</label><input class="input" type="text" id="e_pencatat"></div>
+        <div class="field"><label>Meter listrik</label><div class="input-group"><input class="input" type="number" step="any" id="e_kwhNow"><span class="suffix">kWh</span></div></div>
+        <div class="field"><label>Meter air</label><div class="input-group"><input class="input" type="number" step="any" id="e_airNow"><span class="suffix">m³</span></div></div>
+        <div class="field full">
+          <label>Bukti foto meter &amp; lokasi</label>
+          <div class="capture-row">
+            <label class="cap-btn" id="e_fotoBtn">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M3 8a2 2 0 012-2h2l1.5-2h7L18 6h1a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" stroke-linejoin="round"/><circle cx="12" cy="12.5" r="3.2"/></svg>
+              <span id="e_fotoLabel">Ambil / pilih foto</span>
+              <input type="file" accept="image/*" multiple id="e_fotoFile">
+            </label>
+            <button type="button" class="cap-btn" id="e_geoBtn" onclick="captureGeo('e')">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M12 21s7-6.3 7-11a7 7 0 10-14 0c0 4.7 7 11 7 11z" stroke-linejoin="round"/><circle cx="12" cy="10" r="2.4"/></svg>
+              <span id="e_geoLabel">Tag lokasi GPS</span>
+            </button>
+          </div>
+          <div class="photo-grid" id="e_photoGrid"></div>
+          <div class="geo-tag" id="e_geoTag"><span>📍 <b id="e_geoText"></b></span><button type="button" class="rm" onclick="removeGeo('e')">hapus</button></div>
+        </div>
+        <div class="field full"><label>Catatan</label><textarea class="textarea" id="e_catatan"></textarea></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-danger" id="btnDelete" onclick="deleteCurrent()">Hapus</button>
+        <button class="btn btn-ghost" onclick="closeEdit()">Batal</button>
+        <button class="btn btn-primary" id="btnUpdate" onclick="submitEdit()">Simpan</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <?!= include('JavaScript'); ?>
+</body>
+</html>
