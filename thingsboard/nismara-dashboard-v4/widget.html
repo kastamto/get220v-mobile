@@ -124,6 +124,9 @@
 .wtr-tank-err{display:none;margin-top:8px;font-size:10px;font-weight:700;color:var(--danger);background:var(--danger-soft);padding:3px 8px;border-radius:6px}
 .wtr-tank-card.lvl-err .wtr-tank-err{display:block}
 
+.wtr-tank-card.lvl-err .wtr-tank-pct .u{display:none}
+.wtr-tank-card.lvl-err .wtr-tank-pct{font-size:20px;color:var(--danger)}
+
 /* BALANCE */
 .wtr-balance{display:flex;flex-direction:column;justify-content:center;gap:8px}
 .wtr-balance-state{display:inline-flex;align-items:center;gap:9px;padding:9px 14px;border-radius:10px;font-weight:700;font-size:13px}
@@ -200,6 +203,66 @@
 .zn-foot{display:flex;justify-content:space-between;gap:8px;font-size:10px;color:var(--text-3);border-top:1px solid rgba(255,255,255,.04);padding-top:8px}
 .zn-foot b{color:var(--text-1)}
 
+
+/* TABS / VIEW */
+.wtr-tabs{display:flex;gap:6px;margin-top:14px;overflow-x:auto;padding-bottom:2px}
+.wtr-tab{padding:7px 14px;border-radius:999px;background:rgba(255,255,255,.04);border:1px solid var(--card-border);color:var(--text-3);font-size:11px;font-weight:700;white-space:nowrap;transition:all .2s}
+.wtr-tab:hover{color:var(--text-1);background:rgba(255,255,255,.08)}
+.wtr-tab.active{background:linear-gradient(135deg,var(--water-1),var(--water-3));border-color:transparent;color:#04121a}
+.wtr-root[data-nonav="1"] .wtr-tabs{display:none}
+.wtr-root[data-tab="overview"] [data-tabs]:not([data-tabs~="overview"]),
+.wtr-root[data-tab="water"] [data-tabs]:not([data-tabs~="water"]),
+.wtr-root[data-tab="irrigation"] [data-tabs]:not([data-tabs~="irrigation"]),
+.wtr-root[data-tab="analytics"] [data-tabs]:not([data-tabs~="analytics"]),
+.wtr-root[data-tab="events"] [data-tabs]:not([data-tabs~="events"]){display:none}
+
+/* RAIN FX */
+.wtr-rain-fx{position:absolute;inset:0;border-radius:14px;overflow:hidden;pointer-events:none;opacity:0;transition:opacity .6s}
+.wtr-tank-card.collecting .wtr-rain-fx{opacity:1}
+.wtr-tank-card.collecting{border-color:rgba(45,212,191,.4);box-shadow:0 0 22px rgba(45,212,191,.12)}
+.wtr-rain-fx::before,.wtr-rain-fx::after{content:'';position:absolute;top:-30%;left:0;right:0;height:130%;
+  background-image:linear-gradient(transparent 0 70%,rgba(45,212,191,.55) 70% 100%);
+  background-size:2px 18px;background-repeat:repeat;
+  -webkit-mask-image:repeating-linear-gradient(90deg,#000 0 2px,transparent 2px 17px);mask-image:repeating-linear-gradient(90deg,#000 0 2px,transparent 2px 17px);
+  animation:wtrRain .8s linear infinite}
+.wtr-rain-fx::after{left:8px;opacity:.5;animation-duration:1.1s}
+@keyframes wtrRain{to{transform:translateY(18px)}}
+
+/* ZONE v2 */
+.zn-body{display:flex;gap:14px;align-items:center}
+.zn-gauge{position:relative;width:118px;height:118px;flex-shrink:0}
+.zn-gauge svg{width:100%;height:100%;display:block}
+.zn-gauge .ring-pulse{position:absolute;inset:-4px;border-radius:50%;border:2px solid var(--success);opacity:0;pointer-events:none}
+.wtr-zone.on .zn-gauge .ring-pulse{animation:znPulse 1.6s ease-out infinite}
+@keyframes znPulse{0%{transform:scale(.92);opacity:.7}100%{transform:scale(1.12);opacity:0}}
+.zn-gauge .ctr{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
+.zn-gauge .ctr .p{font-size:26px;font-weight:800;color:var(--text-1);letter-spacing:-1px;line-height:1;font-variant-numeric:tabular-nums}
+.zn-gauge .ctr .p small{font-size:12px;color:var(--text-3);font-weight:600}
+.zn-gauge .ctr .t{font-size:9px;color:var(--text-3);letter-spacing:1px;margin-top:3px;font-weight:700}
+.zn-side{flex:1;display:flex;flex-direction:column;gap:8px;min-width:0}
+.zn-spark{width:100%;height:34px;display:block}
+.zn-drops{display:none;gap:3px;font-size:12px}
+.wtr-zone.on .zn-drops{display:flex}
+.zn-drops span{animation:znDrop 1s ease-in infinite}
+.zn-drops span:nth-child(2){animation-delay:.2s}.zn-drops span:nth-child(3){animation-delay:.4s}
+@keyframes znDrop{0%{transform:translateY(-4px);opacity:0}50%{opacity:1}100%{transform:translateY(5px);opacity:0}}
+.zn-ctl{display:flex;flex-direction:column;gap:7px;border-top:1px solid rgba(255,255,255,.05);padding-top:9px}
+.zn-seg{display:inline-flex;border:1px solid var(--card-border);border-radius:8px;overflow:hidden}
+.zn-seg button{padding:5px 11px;font-size:10px;font-weight:700;color:var(--text-3);background:rgba(255,255,255,.03)}
+.zn-seg button.act{background:var(--water-1);color:#04121a}
+.zn-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.zn-btn{padding:5px 10px;border-radius:7px;font-size:10px;font-weight:700;background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.35);color:var(--soil)}
+.zn-btn:hover{background:rgba(52,211,153,.25)}
+.zn-btn.stop{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.35);color:var(--danger)}
+.zn-btn.ghost{background:rgba(255,255,255,.04);border-color:var(--card-border);color:var(--text-3)}
+.zn-ctl.disabled .zn-btn,.zn-ctl.disabled .zn-seg{opacity:.4;pointer-events:none}
+.zn-set{display:none;gap:8px;align-items:flex-end;flex-wrap:wrap;background:rgba(0,0,0,.18);border:1px solid var(--card-border);border-radius:8px;padding:8px 10px}
+.zn-set.open{display:flex}
+.zn-set label{font-size:9px;color:var(--text-3);text-transform:uppercase;letter-spacing:.6px;display:block;margin-bottom:2px}
+.zn-set input{width:64px;padding:5px 7px;background:rgba(0,0,0,.35);border:1px solid var(--card-border);border-radius:6px;color:var(--text-1);font-size:12px;font-family:inherit;outline:none}
+.zn-timer{font-size:10px;color:var(--success);font-weight:700}
+@media (max-width:600px){.zn-body{flex-direction:column;align-items:stretch}.zn-gauge{align-self:center}}
+
 /* LIVE */
 .wtr-live-grid{display:grid;grid-template-columns:repeat(3, 1fr);gap:10px;margin-top:6px}
 .wtr-live-item{background:rgba(0,0,0,0.18);border:1px solid var(--card-border);border-radius:8px;padding:10px 12px;min-width:0;overflow:hidden}
@@ -267,7 +330,7 @@
 @media print{.wtr-root{background:#fff!important;color:#000!important;height:auto!important;overflow:visible!important}.wtr-export{display:none}.wtr-root *,.wtr-root *::before,.wtr-root *::after{color:#000!important;background:#fff!important;border-color:#999!important}}
 </style>
 
-<div class="wtr-root" data-wtr-root>
+<div class="wtr-root" data-wtr-root data-tab="all">
 
   <!-- ===== HEADER ===== -->
   <div class="wtr-hdr">
@@ -293,8 +356,17 @@
     <div class="wtr-dev-chip" data-dev-chip="irrR"><span class="led"></span>Garden Roof <b data-bind="chipIrrR">--</b></div>
   </div>
 
+  <div class="wtr-tabs" data-tabs-nav>
+    <button class="wtr-tab active" data-tab-btn="all">◧ All</button>
+    <button class="wtr-tab" data-tab-btn="overview">🗺️ Overview</button>
+    <button class="wtr-tab" data-tab-btn="water">💧 Water</button>
+    <button class="wtr-tab" data-tab-btn="irrigation">🌱 Irrigation</button>
+    <button class="wtr-tab" data-tab-btn="analytics">📈 Analytics</button>
+    <button class="wtr-tab" data-tab-btn="events">🚨 Events</button>
+  </div>
+
   <!-- ===== SYSTEM SUMMARY ===== -->
-  <div class="wtr-sys-strip">
+  <div class="wtr-sys-strip" data-tabs="overview">
     <div class="wtr-sys-card">
       <div class="wtr-sys-label">🪣 Total Stored</div>
       <div class="wtr-sys-value"><span data-bind="sysStored">--</span></div>
@@ -328,7 +400,7 @@
   </div>
 
   <!-- ===== SCHEMATIC ===== -->
-  <div class="wtr-section">
+  <div class="wtr-section" data-tabs="overview">
     <div class="wtr-section-hdr"><div class="wtr-section-title">🗺️ System Flow</div></div>
     <div class="wtr-schematic">
       <svg class="wtr-schematic-svg" viewBox="0 0 1000 360" preserveAspectRatio="xMidYMid meet" data-schematic></svg>
@@ -336,7 +408,7 @@
   </div>
 
   <!-- ===== GWT SECTION ===== -->
-  <div class="wtr-section" data-gwt-section>
+  <div class="wtr-section" data-tabs="water" data-gwt-section>
     <div class="wtr-section-hdr"><div class="wtr-section-title">🛢️ Ground Water Tank (GWT)</div></div>
     <div class="wtr-3col">
       <div class="wtr-tank-card" data-gwt-tank="1">
@@ -370,10 +442,10 @@
   </div>
 
   <!-- ===== RAIN WATER SECTION ===== -->
-  <div class="wtr-section" data-rain-section>
+  <div class="wtr-section" data-tabs="water" data-rain-section>
     <div class="wtr-section-hdr"><div class="wtr-section-title">🌧️ Rain Water Collection</div></div>
     <div class="wtr-3col">
-      <div class="wtr-tank-card" data-rw-tank>
+      <div class="wtr-tank-card" data-rw-tank><div class="wtr-rain-fx"></div>
         <div class="cap"><span class="led"></span><span data-bind="rwName">Rain Water Tank</span></div>
         <div class="wtr-tank-readout"><div class="wtr-tank-pct"><span data-bind="rwPct">--</span><span class="u">%</span></div></div>
         <svg class="wtr-tank-svg" viewBox="0 0 120 200" data-rw-svg></svg>
@@ -403,7 +475,7 @@
   </div>
 
   <!-- ===== TRANSFER SECTION ===== -->
-  <div class="wtr-section" data-transfer-section>
+  <div class="wtr-section" data-tabs="water" data-transfer-section>
     <div class="wtr-section-hdr"><div class="wtr-section-title">🔄 Transfer Pump</div></div>
     <div class="wtr-3col">
       <div class="wtr-kpi-card violet">
@@ -435,7 +507,7 @@
   </div>
 
   <!-- ===== ROOF SECTION ===== -->
-  <div class="wtr-section" data-roof-section>
+  <div class="wtr-section" data-tabs="water" data-roof-section>
     <div class="wtr-section-hdr"><div class="wtr-section-title">🏠 Roof Tank + Booster</div></div>
     <div class="wtr-2col">
       <div class="wtr-tank-card" data-roof-tank style="padding:14px">
@@ -473,7 +545,7 @@
   </div>
 
   <!-- ===== SMART IRRIGATION ===== -->
-  <div class="wtr-section" data-irrig-section>
+  <div class="wtr-section" data-tabs="irrigation overview" data-irrig-section>
     <div class="wtr-section-hdr"><div class="wtr-section-title">🌱 Smart Irrigation · 3 Zone</div></div>
     <div class="wtr-sys-strip" style="margin-top:0;margin-bottom:12px">
       <div class="wtr-sys-card"><div class="wtr-sys-label">💦 Watering Now</div><div class="wtr-sys-value"><span data-bind="irrNow">--</span></div><div class="wtr-sys-foot" data-bind="irrNowFoot">zona aktif</div></div>
@@ -485,7 +557,7 @@
   </div>
 
   <!-- ===== LIVE READINGS ===== -->
-  <div class="wtr-section">
+  <div class="wtr-section" data-tabs="overview analytics">
     <div class="wtr-section-hdr" style="margin-bottom:6px"><div class="wtr-section-title">📡 Live Readings</div></div>
     <div class="wtr-panel">
       <div class="wtr-live-grid">
@@ -503,7 +575,7 @@
   </div>
 
   <!-- ===== TIME RANGE ===== -->
-  <div class="wtr-section">
+  <div class="wtr-section" data-tabs="analytics events">
     <div class="wtr-section-hdr" style="margin-bottom:6px"><div class="wtr-section-title">📅 Time Range</div></div>
     <div class="wtr-panel">
       <div class="wtr-presets" data-presets>
@@ -528,7 +600,7 @@
   </div>
 
   <!-- ===== TREND CHART ===== -->
-  <div class="wtr-section">
+  <div class="wtr-section" data-tabs="analytics water">
     <div class="wtr-section-hdr">
       <div class="wtr-section-title">📈 Levels & Flow Trend</div>
       <div class="wtr-chart-legend">
@@ -546,7 +618,7 @@
   </div>
 
   <!-- ===== IRRIGATION CHART ===== -->
-  <div class="wtr-section" data-irrig-chart-section>
+  <div class="wtr-section" data-tabs="analytics irrigation" data-irrig-chart-section>
     <div class="wtr-section-hdr">
       <div class="wtr-section-title">🌱 Soil Moisture & Valve Trend</div>
       <div class="wtr-chart-legend" data-irrig-legend></div>
@@ -556,12 +628,12 @@
   </div>
 
   <!-- ===== EVENTS ===== -->
-  <div class="wtr-section">
+  <div class="wtr-section" data-tabs="events water irrigation overview">
     <div class="wtr-section-hdr"><div class="wtr-section-title">🚨 System Events <span data-bind="eventCount" style="color:var(--text-3);font-weight:500">[0]</span></div></div>
     <div class="wtr-panel"><div data-event-list><div class="wtr-event-empty">No events in selected range.</div></div></div>
   </div>
 
-  <div class="wtr-export">
+  <div class="wtr-export" data-tabs="analytics events">
     <button class="wtr-export-btn" data-action="csv">📥 CSV</button>
     <button class="wtr-export-btn" data-action="print">🖨️ Print</button>
   </div>
