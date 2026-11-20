@@ -576,12 +576,14 @@ function renderSchematic(ctx){
 
   var gx=130, px=460, rx=760, bx=940, midY=120;
 
+  var glyphN=0;
   function tankGlyph(cx, topY, w, h, pct, color, err){
-    var fillH=(Math.max(0,Math.min(100,pct||0))/100)*(h-6);
-    var x=cx-w/2;
-    var s='<rect x="'+x+'" y="'+topY+'" width="'+w+'" height="'+h+'" rx="6" fill="rgba(255,255,255,.03)" stroke="'+(err?'#ef4444':'rgba(148,163,184,.4)')+'" stroke-width="1.5"/>';
-    if (fillH>0) s+='<rect x="'+(x+2)+'" y="'+(topY+h-3-fillH)+'" width="'+(w-4)+'" height="'+(fillH+1)+'" rx="3" fill="'+color+'" opacity="0.85"/>';
-    if (err) s+='<text x="'+cx+'" y="'+(topY+h/2+4)+'" text-anchor="middle" fill="#ef4444" font-size="11" font-weight="800">ERR</text>';
+    // silinder 3D (sama dengan kartu tangki): h = tinggi total termasuk elips atas & bawah
+    var ry=Math.max(4,Math.min(10,w*0.12)), body=h-2*ry;
+    var s=cyl(cx-w/2, topY+ry, w, body, err?0:pct, color, 'sc'+(glyphN++), false);
+    if (err) s+='<path d="M'+(cx-w/2)+','+(topY+ry)+' L'+(cx-w/2)+','+(topY+ry+body)+' A'+(w/2)+','+ry+' 0 0 0 '+(cx+w/2)+','+(topY+ry+body)+' L'+(cx+w/2)+','+(topY+ry)+'" fill="none" stroke="#ef4444" stroke-width="2"/>'+
+      '<ellipse cx="'+cx+'" cy="'+(topY+ry)+'" rx="'+(w/2)+'" ry="'+ry+'" fill="none" stroke="#ef4444" stroke-width="2"/>'+
+      '<text x="'+cx+'" y="'+(topY+h/2+4)+'" text-anchor="middle" fill="#ef4444" font-size="11" font-weight="800">ERR</text>';
     return s;
   }
 
