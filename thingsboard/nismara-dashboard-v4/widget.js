@@ -228,7 +228,9 @@ function rebuildDevices(ctx) {
 
   Object.keys(buckets).forEach(function(id){
     var b = buckets[id];
-    var role = classifyRole(b.keys, b.name);
+    // klasifikasi hanya dari key yang BENAR-BENAR punya data (aman bila satu alias membawa semua key ke semua device)
+    var live = {}; Object.keys(b.keys).forEach(function(k){ if (b.keys[k] && b.keys[k].length) live[k]=1; });
+    var role = classifyRole(live, b.name);
     var t = dev[role] || dev.unknown;
     t.present = true; t.name = b.name; t.dsId = id; t.entityId = b.entityId; t.entityType = b.entityType || 'DEVICE';
     Object.keys(b.keys).forEach(function(key){
