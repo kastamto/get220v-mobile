@@ -4,8 +4,10 @@
 widget.html / widget.js     sumber widget (bisa di-paste manual ke tab HTML / JS widget Time series)
 build_bundle.js             node build_bundle.js  ->  nismara_water_bundle.json
 nismara_water_bundle.json   WIDGETS BUNDLE (import ke ThingsBoard)
-firmware/nismara_gwt/        ESP32 GWT: 2 tank + rain tank + flow 1"
-firmware/nismara_irrigation/ ESP32 irigasi (profil Garden Lt.1 = 2 zone, Garden Roof = 1 zone)
+firmware/PINOUT.md           tabel pin, wiring, kalibrasi
+firmware/nismara_gwt/        ESP32 GWT: 2 tank + rain tank + flow 1"   (config.h = semua pin & WiFi/token)
+firmware/nismara_irrigation/ ESP32 irigasi: profil Garden Lt.1 (2 zone) / Garden Roof (1 zone)  (config.h)
+preview.html                 preview standalone dengan data simulasi (node build_preview.js)
 ```
 
 ## Import

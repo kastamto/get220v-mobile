@@ -128,13 +128,14 @@ self.onInit = function() {
   });
 
   // view / tabs
-  ctx.state.ui = { open:{}, edit:{} };
+  ctx.state.ui = { open:{}, edit:{}, pending:{}, alertsAll:false };
   var view = ctx.cfg.view;
   if (view==='water' || view==='irrigation'){ rootEl.setAttribute('data-tab', view); rootEl.setAttribute('data-nonav','1'); }
   rootEl.querySelectorAll('[data-tab-btn]').forEach(function(b){
+    b.setAttribute('role','tab');
     b.addEventListener('click', function(){
-      rootEl.querySelectorAll('[data-tab-btn]').forEach(function(x){ x.classList.remove('active'); });
-      b.classList.add('active'); rootEl.setAttribute('data-tab', b.getAttribute('data-tab-btn'));
+      rootEl.querySelectorAll('[data-tab-btn]').forEach(function(x){ x.classList.remove('active'); x.setAttribute('aria-selected','false'); });
+      b.classList.add('active'); b.setAttribute('aria-selected','true'); rootEl.setAttribute('data-tab', b.getAttribute('data-tab-btn'));
       setTimeout(function(){ renderChart(ctx); renderIrrigChart(ctx); }, 0);
     });
   });
@@ -147,6 +148,19 @@ self.onInit = function() {
       e[t.getAttribute('data-in')]=t.value;
     });
   }
+
+  // attention center, schematic click-through, chart hover, freshness timer
+  var alertsEl = rootEl.querySelector('[data-alerts]');
+  if (alertsEl) alertsEl.addEventListener('click', function(ev){
+    var more=ev.target.closest('[data-alerts-more]'); if(more){ ctx.state.ui.alertsAll=!ctx.state.ui.alertsAll; renderAlerts(ctx); return; }
+    var g=ev.target.closest('[data-goto]'); if(g) gotoTab(ctx, g.getAttribute('data-goto'));
+  });
+  var schem = rootEl.querySelector('[data-schematic]');
+  if (schem) schem.addEventListener('click', function(ev){ var g=ev.target.closest('[data-goto]'); if(g) gotoTab(ctx, g.getAttribute('data-goto')); });
+  ctx.state.models = {};
+  attachHover(ctx, 'main', rootEl.querySelector('[data-chart]'));
+  attachHover(ctx, 'irr', rootEl.querySelector('[data-chart-irr]'));
+  ctx.state.timer = setInterval(function(){ updateAge(ctx); }, 1000);
 
   bindBtn(rootEl, 'csv',   function(){ exportCSV(ctx); });
   bindBtn(rootEl, 'print', function(){ window.print(); });
@@ -162,6 +176,8 @@ self.onInit = function() {
     renderTransfer(ctx);
     renderRoof(ctx);
     renderIrrigation(ctx);
+    renderTrends(ctx);
+    renderAlerts(ctx);
     renderLive(ctx);
     renderRangeStats(ctx);
     renderChart(ctx);
@@ -174,7 +190,7 @@ self.onInit = function() {
 
 self.onDataUpdated = function(){ if (self.ctx._render) self.ctx._render(); };
 self.onResize = function(){ if (self.ctx && self.ctx.state) { renderChart(self.ctx); renderIrrigChart(self.ctx); } };
-self.onDestroy = function(){};
+self.onDestroy = function(){ if (self.ctx && self.ctx.state && self.ctx.state.timer) clearInterval(self.ctx.state.timer); };
 
 /* ============================ DATA LAYER ============================ */
 function emptyDev(){ return { latest:{}, series:{}, name:null, lastTs:0, present:false }; }
@@ -293,6 +309,7 @@ function zoneInfo(ctx, z){
   var tStart=Lv(ctx,z.role,pre+'_start_pct'), tStop=Lv(ctx,z.role,pre+'_stop_pct');
   var dry = tStart!=null ? tStart : (z.dry!=null?z.dry:cfg.soilDryPct), wet = z.wet!=null?z.wet:cfg.soilWetPct, target = tStop!=null ? tStop : (z.target!=null?z.target:cfg.soilTargetPct);
   var autoRaw=Lr(ctx,z.role,pre+'_auto'); var autoMode = autoRaw==null ? null : truthy(autoRaw);
+  var inWin=Lv(ctx,z.role,'in_window'), winTxt=Lr(ctx,z.role,'win');
   var remainS=Lv(ctx,z.role,pre+'_remain_s')||0, cycles=Lv(ctx,z.role,pre+'_cycles'), fault=Lv(ctx,z.role,pre+'_fault')||0;
   var valveHas = L(ctx,z.role,z.valve)!=null;
   var on = valveHas && truthy(Lr(ctx,z.role,z.valve));
@@ -321,6 +338,8 @@ function zoneInfo(ctx, z){
     else msg='Sedang menyiram · target '+target+'%.';
   } else if (status==='dry' && autoMode===false){
     msg='Mode MANUAL — tanah kering ('+avg.toFixed(0)+'%), auto-siram nonaktif.';
+  } else if (status==='dry' && autoMode!==false && inWin===0){
+    msg='Kering ('+avg.toFixed(0)+'%) — menunggu jendela siram '+(winTxt||'')+'.';
   } else if (status==='dry'){
     msg='Perlu siram — '+(cfg.irrigSource==='rain' ? (rainOk?'air hujan tersedia.':'tangki hujan rendah, gunakan GWT.') : 'sumber GWT.');
   } else if (status==='wet') msg='Tanah basah — tidak perlu siram.';
@@ -328,7 +347,7 @@ function zoneInfo(ctx, z){
   if (hasKeys && mismatch) msg+=' ⚠ Selisih 2 sensor '+Math.abs(valid[0]-valid[1]).toFixed(0)+'%.';
 
   return { z:z, present:hasKeys, soils:soils, raw:raw, avg:avg, dry:dry, wet:wet, target:target,
-           autoMode:autoMode, remainS:remainS, cycles:cycles, fault:fault, pre:pre, on:on, valveHas:valveHas, online:online, status:status, mismatch:mismatch, onMs:onMs, msg:msg };
+           autoMode:autoMode, inWin:inWin, remainS:remainS, cycles:cycles, fault:fault, pre:pre, on:on, valveHas:valveHas, online:online, status:status, mismatch:mismatch, onMs:onMs, msg:msg };
 }
 
 /* avg soil per zona sbg time series (forward-fill kedua sensor) */
@@ -450,6 +469,7 @@ function renderHeader(ctx){
     statusEl.className='wtr-status '+cls;
     statusEl.innerHTML=' '+txt;
   }
+  ctx.state.lastDataTs=lastTs;
   var d=new Date(lastTs||Date.now());
   setText(rootEl,'updated', pad2(d.getHours())+':'+pad2(d.getMinutes())+':'+pad2(d.getSeconds()));
 
@@ -634,6 +654,10 @@ function renderSchematic(ctx){
     c = pipe(px+80, y2, rx-80, y2, rOn, 'irr') + c;
   }
 
+  function hit(x,y,w,h,tab,title){ return '<rect data-goto="'+tab+'" x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" fill="transparent"><title>'+title+'</title></rect>'; }
+  c += hit(60,40,150,185,'water','Buka tab Water') + hit(405,40,110,185,'water','Buka tab Water') + hit(690,35,140,190,'water','Buka tab Water');
+  if (hasRain(ctx)) c += hit(90,225,100,125,'water','Buka tab Water');
+  c += hit(375,246,170,86,'irrigation','Buka tab Irrigation') + hit(675,246,170,86,'irrigation','Buka tab Irrigation');
   svg.innerHTML=c;
 
   function pipe(x1,y1,x2,y2_,active,kind){
@@ -821,6 +845,16 @@ function renderIrrigation(ctx){
   var fromTs=ctx.state.range.from.getTime(), toTs=ctx.state.range.to.getTime();
   var infos=cfg.irrigZones.map(function(z){ return zoneInfo(ctx,z); });
   var html='', totalWaterL=0, anyWater=false;
+  // resolve pending commands (konfirmasi dari telemetry device / timeout)
+  infos.forEach(function(i){
+    var p=ui.pending[i.z.id]; if(!p) return;
+    var ex=p.expect, t=L(ctx,i.z.role,i.z.valve), fresh=t && t.ts>=p.ts-1000, okc=true;
+    if (ex.valve!=null) okc = okc && i.on===ex.valve;
+    if (ex.auto!=null)  okc = okc && i.autoMode===ex.auto;
+    if (ex.start!=null) okc = okc && Math.abs(i.dry-ex.start)<0.5 && Math.abs(i.target-ex.stop)<0.5;
+    if (okc && fresh){ delete ui.pending[i.z.id]; toast(ctx,'✅ '+p.label+' — terkonfirmasi device','success'); }
+    else if (Date.now()-p.ts>25000){ delete ui.pending[i.z.id]; toast(ctx,'⚠ '+p.label+': device belum merespons (offline / belum subscribe attribute)','error'); }
+  });
 
   infos.forEach(function(i){
     var z=i.z;
@@ -838,9 +872,16 @@ function renderIrrigation(ctx){
     var ed = ui.edit[z.id] || {};
     var startV = ed.start!=null?ed.start:i.dry, stopV = ed.stop!=null?ed.stop:i.target;
 
-    html+='<div class="wtr-zone'+(i.on?' on':'')+(i.online?'':' off-line')+'" data-zone="'+z.id+'">'+
+    var pend = !!ui.pending[z.id];
+    var sl = slopePerHour(zoneAvgSeries(ctx,z), 3*3600000), trendTxt='';
+    if (sl!=null && !i.on){
+      if (sl<-0.3 && i.avg!=null && i.avg>i.dry) trendTxt='📉 '+sl.toFixed(1)+'%/jam · ±'+fmtHours((i.avg-i.dry)/(-sl))+' lagi mencapai batas dry';
+      else if (sl>0.3) trendTxt='📈 +'+sl.toFixed(1)+'%/jam';
+      else if (i.avg!=null) trendTxt='➡ stabil';
+    }
+    html+='<div class="wtr-zone'+(i.on?' on':'')+(i.online?'':' off-line')+(pend?' pending':'')+'" data-zone="'+z.id+'">'+
       '<div class="zn-head"><div><div class="zn-name">'+esc(z.label)+'</div><div class="zn-dev">'+esc(devName)+' · '+(i.online?'online':'offline')+(i.cycles!=null?' · '+Math.round(i.cycles)+' siklus':'')+'</div></div>'+
-        '<div class="zn-valve"><span class="led"></span>VALVE '+(i.valveHas?(i.on?'OPEN':'CLOSED'):'--')+'</div></div>'+
+        (pend?'<span class="zn-pending">⏳ menunggu device…</span>':'')+'<div class="zn-valve"><span class="led"></span>VALVE '+(i.valveHas?(i.on?'OPEN':'CLOSED'):'--')+'</div></div>'+
       '<div class="zn-body">'+
         '<div class="zn-gauge">'+gaugeSvg(i, z)+'<div class="ring-pulse"></div><div class="ctr"><div class="p">'+(i.avg==null?'--':i.avg.toFixed(0))+'<small>%</small></div><div class="t">SOIL</div></div></div>'+
         '<div class="zn-side">'+
@@ -850,6 +891,7 @@ function renderIrrigation(ctx){
         '</div>'+
       '</div>'+
       '<div class="zn-decision">'+esc(i.msg)+'</div>'+
+      (trendTxt?'<div class="zn-trend">'+esc(trendTxt)+'</div>':'')+
       (cfg.irrigControl ?
       '<div class="zn-ctl'+(canCtl?'':' disabled')+'">'+
         '<div class="zn-row"><div class="zn-seg"><button data-act="auto" class="'+(i.autoMode===true?'act':'')+'">AUTO</button><button data-act="manual" class="'+(i.autoMode===false?'act':'')+'">MANUAL</button></div>'+
@@ -930,17 +972,17 @@ function onZoneClick(ctx, ev){
   var z=ctx.cfg.irrigZones.filter(function(x){return x.id===zid;})[0]; if(!z) return;
   var pre=zPrefix(z), act=btn.getAttribute('data-act'), stamp=Date.now();
   if (act==='settings'){ ctx.state.ui.open[zid]=!ctx.state.ui.open[zid]; var p=zEl.querySelector('.zn-set'); if(p) p.classList.toggle('open', !!ctx.state.ui.open[zid]); return; }
-  if (act==='auto' || act==='manual'){ var a={}; a[pre+'_auto']=(act==='auto'); sendAttrs(ctx, z, a, act==='auto'?'Mode AUTO':'Mode MANUAL'); return; }
-  if (act==='open'){ var m=parseInt(btn.getAttribute('data-min'),10)||5, c={}; c[pre+'_cmd']='open|'+m+'|'+stamp; sendAttrs(ctx, z, c, 'Buka '+z.label+' '+m+' menit'); return; }
-  if (act==='close'){ var d={}; d[pre+'_cmd']='close|0|'+stamp; sendAttrs(ctx, z, d, 'Tutup '+z.label); return; }
+  if (act==='auto' || act==='manual'){ var a={}; a[pre+'_auto']=(act==='auto'); sendAttrs(ctx, z, a, act==='auto'?'Mode AUTO':'Mode MANUAL', {auto:(act==='auto')}); return; }
+  if (act==='open'){ var m=parseInt(btn.getAttribute('data-min'),10)||5, c={}; c[pre+'_cmd']='open|'+m+'|'+stamp; sendAttrs(ctx, z, c, 'Buka '+z.label+' '+m+' menit', {valve:true}); return; }
+  if (act==='close'){ var d={}; d[pre+'_cmd']='close|0|'+stamp; sendAttrs(ctx, z, d, 'Tutup '+z.label, {valve:false}); return; }
   if (act==='save'){
     var s=parseFloat(zEl.querySelector('[data-in="start"]').value), e=parseFloat(zEl.querySelector('[data-in="stop"]').value);
     if (isNaN(s)||isNaN(e)||s<0||e>100||e<=s){ toast(ctx,'Nilai tidak valid: stop harus > mulai (0–100)','error'); return; }
     var t={}; t[pre+'_start_pct']=s; t[pre+'_stop_pct']=e; delete ctx.state.ui.edit[zid];
-    sendAttrs(ctx, z, t, 'Threshold '+z.label+' disimpan'); return;
+    sendAttrs(ctx, z, t, 'Threshold '+z.label+' disimpan', {start:s, stop:e}); return;
   }
 }
-function sendAttrs(ctx, z, obj, okMsg){
+function sendAttrs(ctx, z, obj, okMsg, expect){
   var dev=ctx.state.dev[z.role];
   var svc=ctx.attributeService;
   if (!svc || !dev || !dev.entityId){ toast(ctx,'Tidak bisa kirim: attributeService / entity tidak tersedia','error'); return; }
@@ -948,7 +990,7 @@ function sendAttrs(ctx, z, obj, okMsg){
   var ent={ entityType: dev.entityType||'DEVICE', id: dev.entityId };
   try {
     svc.saveEntityAttributes(ent, 'SHARED_SCOPE', list).subscribe(
-      function(){ toast(ctx,'✅ '+okMsg+' — dikirim ke device','success'); },
+      function(){ toast(ctx,'📨 '+okMsg+' — menunggu konfirmasi device…','success'); if(expect){ ctx.state.ui.pending[z.id]={ ts:Date.now(), expect:expect, label:okMsg }; if(ctx._render) ctx._render(); } },
       function(){ toast(ctx,'❌ Gagal kirim (cek hak akses tulis atribut)','error'); });
   } catch(e){ toast(ctx,'❌ '+e.message,'error'); }
 }
@@ -1086,7 +1128,7 @@ function renderChart(ctx){
 
   var allTs=[];
   [sT1,sT2,sRoof,sRain,sFlow,sRF].forEach(function(ser){ ser.forEach(function(p){allTs.push(p[0]);}); });
-  if (allTs.length<2){ svg.style.display='none'; if(emptyEl){emptyEl.style.display='flex';} return; }
+  if (allTs.length<2){ svg.style.display='none'; ctx.state.models.main=null; if(emptyEl){emptyEl.style.display='flex';} return; }
   svg.style.display=''; if(emptyEl) emptyEl.style.display='none';
 
   var fromTs=Math.min.apply(null,allTs), toTs=Math.max.apply(null,allTs), spanMs=Math.max(1,toTs-fromTs);
@@ -1125,6 +1167,13 @@ function renderChart(ctx){
   c+='<text x="'+(W-padR+9)+'" y="'+(padT-8)+'" text-anchor="start" fill="#a78bfa" font-size="10" font-weight="700">FLOW L/min</text>';
   c+='<text x="'+(W/2)+'" y="'+(padT-8)+'" text-anchor="middle" fill="#94a3b8" font-size="10">Span: <tspan fill="#22d3ee" font-weight="700">'+spanLabel(spanMs)+'</tspan></text>';
   svg.innerHTML=c;
+  ctx.state.models.main = { W:W, padL:padL, cW:cW, fromTs:fromTs, spanMs:spanMs, series:[
+    {label:'GWT T1',color:'#38bdf8',data:sT1,fmt:function(v){return v.toFixed(1)+'%';}},
+    {label:'GWT T2',color:'#0ea5e9',data:sT2,fmt:function(v){return v.toFixed(1)+'%';}},
+    {label:'Roof',color:'#06b6d4',data:sRoof,fmt:function(v){return v.toFixed(1)+'%';}},
+    {label:'Rain tank',color:'#2dd4bf',data:sRain,fmt:function(v){return v.toFixed(1)+'%';}},
+    {label:'Transfer',color:'#a78bfa',data:sFlow,fmt:function(v){return v.toFixed(1)+' L/min';}},
+    {label:'Rain flow',color:'#f472b6',data:sRF,fmt:function(v){return v.toFixed(1)+' L/min';}} ] };
 
   function lastMarker(series, fx, fy, color, fmt, side){
     if (!series.length) return '';
@@ -1172,7 +1221,7 @@ function renderIrrigChart(ctx){
   var zs=ctx.cfg.irrigZones.filter(function(z){ return ctx.state.dev[z.role].present; });
   var avgSer=zs.map(function(z){ return zoneAvgSeries(ctx,z); });
   var allTs=[]; avgSer.forEach(function(se){ se.forEach(function(p){allTs.push(p[0]);}); });
-  if (allTs.length<2){ svg.style.display='none'; if(emptyEl) emptyEl.style.display='flex'; if(legend) legend.innerHTML=''; return; }
+  if (allTs.length<2){ svg.style.display='none'; ctx.state.models.irr=null; if(emptyEl) emptyEl.style.display='flex'; if(legend) legend.innerHTML=''; return; }
   svg.style.display=''; if(emptyEl) emptyEl.style.display='none';
 
   var fromTs=Math.min.apply(null,allTs), toTs=Math.max.apply(null,allTs), spanMs=Math.max(1,toTs-fromTs);
@@ -1212,6 +1261,8 @@ function renderIrrigChart(ctx){
   c+='<text x="'+(padL-9)+'" y="'+(padT-8)+'" text-anchor="end" fill="#34d399" font-size="10" font-weight="700">SOIL %</text>';
   c+='<text x="'+(W/2)+'" y="'+(padT-8)+'" text-anchor="middle" fill="#94a3b8" font-size="10">Span: <tspan fill="#22d3ee" font-weight="700">'+spanLabel(spanMs)+'</tspan></text>';
   svg.innerHTML=c;
+  ctx.state.models.irr = { W:W, padL:padL, cW:cW, fromTs:fromTs, spanMs:spanMs, series: zs.map(function(z,i){
+    return {label:z.label.replace('Garden ',''),color:z.color,data:avgSer[i],fmt:function(v){return v.toFixed(0)+'%';},valve:S(ctx,z.role,z.valve)}; }) };
 }
 
 /* ============================ EVENTS RENDER ============================ */
@@ -1269,6 +1320,146 @@ function exportCSV(ctx){
   setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); },200);
   toast(ctx,'✅ CSV downloaded','success');
 }
+
+/* ============================ UX: TRENDS / ALERTS / HOVER ============================ */
+function slopePerHour(series, windowMs){
+  if (!series || series.length<3) return null;
+  var tEnd=series[series.length-1][0], pts=series.filter(function(p){ return p[0]>=tEnd-windowMs && !isNaN(parseFloat(p[1])); });
+  if (pts.length<3) return null;
+  var n=pts.length, sx=0, sy=0, sxx=0, sxy=0;
+  pts.forEach(function(p){ var x=(p[0]-pts[0][0])/3600000, y=parseFloat(p[1]); sx+=x; sy+=y; sxx+=x*x; sxy+=x*y; });
+  var den=n*sxx-sx*sx; if (Math.abs(den)<1e-9) return null;
+  return (n*sxy-sx*sy)/den;
+}
+function fmtHours(h){ if(h<1) return Math.max(1,Math.round(h*60))+' menit'; if(h<48) return h.toFixed(h<10?1:0)+' jam'; return Math.round(h/24)+' hari'; }
+function setTrend(ctx, key, series, lvl, tankFull){
+  var el=ctx.$('[data-trend="'+key+'"]'); if(!el) return;
+  var sl=slopePerHour(series, 90*60000);
+  if (sl==null || lvl==null){ el.textContent=''; el.className='wtr-trend'; return; }
+  if (Math.abs(sl)<0.3){ el.textContent='→ stabil'; el.className='wtr-trend'; return; }
+  var up=sl>0, eta='';
+  if (up && lvl<100) eta=' · penuh ±'+fmtHours((100-lvl)/sl);
+  if (!up && lvl>0)  eta=' · kosong ±'+fmtHours(lvl/(-sl));
+  if (eta && ((up?(100-lvl)/sl:lvl/(-sl))>72)) eta='';
+  el.textContent=(up?'▲ +':'▼ ')+sl.toFixed(1)+'%/jam'+eta; el.className='wtr-trend '+(up?'up':'down');
+}
+function renderTrends(ctx){
+  setTrend(ctx,'gwt1', vSeries(ctx,'gwt','t1_level','t1_dist_cm'), lvlOf(ctx,'gwt','t1_level','t1_dist_cm'));
+  setTrend(ctx,'gwt2', vSeries(ctx,'gwt','t2_level','t2_dist_cm'), lvlOf(ctx,'gwt','t2_level','t2_dist_cm'));
+  setTrend(ctx,'rw',   vSeries(ctx,'gwt','rw_level','rw_dist_cm'), lvlOf(ctx,'gwt','rw_level','rw_dist_cm'));
+  setTrend(ctx,'roof', vSeries(ctx,'roof','level_pct','distance_cm'), lvlOf(ctx,'roof','level_pct','distance_cm'));
+}
+function ago(ts){ if(!ts) return 'belum pernah'; var s=Math.round((Date.now()-ts)/1000); if(s<90) return s+' dtk lalu'; var m=Math.round(s/60); if(m<90) return m+' mnt lalu'; return Math.round(m/60)+' jam lalu'; }
+function updateAge(ctx){
+  var chip=ctx.$('[data-age-chip]'), ts=ctx.state.lastDataTs; if(!chip) return;
+  setText(ctx.state.rootEl,'age', ts?('· '+ago(ts)):'');
+  var age=ts?Date.now()-ts:1e12;
+  chip.style.borderColor = age>ctx.cfg.offlineMs?'rgba(239,68,68,.5)':age>30000?'rgba(245,158,11,.5)':'';
+}
+function gotoTab(ctx, tab){
+  var rootEl=ctx.state.rootEl;
+  if (rootEl.getAttribute('data-nonav')==='1') return;
+  var b=rootEl.querySelector('[data-tab-btn="'+tab+'"]'); if(b) b.click();
+  rootEl.scrollTop=0;
+}
+function buildAlerts(ctx){
+  var A=[], cfg=ctx.cfg, D=ctx.state.dev;
+  function add(sev,icon,text,tab){ A.push({sev:sev,icon:icon,text:text,tab:tab}); }
+  var names={gwt:'GWT',flow:'Transfer pump',roof:'Roof tank',irrG:'Garden Lt.1',irrR:'Garden Roof'};
+  var tabOf={gwt:'water',flow:'water',roof:'water',irrG:'irrigation',irrR:'irrigation'};
+  var anyPresent=false;
+  ROLES.forEach(function(r){
+    var d=D[r]; if(!d.present) return; anyPresent=true;
+    if (!devOnline(ctx,r)) add('danger','📴',names[r]+' offline — data terakhir '+ago(d.lastTs),tabOf[r]);
+    else { var rs=Lv(ctx,r,'rssi'); if (rs!=null && rs<=-85) add('warn','📶','Sinyal '+names[r]+' lemah ('+Math.round(rs)+' dBm) — risiko putus-putus',tabOf[r]); }
+  });
+  if (!anyPresent) add('info','⏳','Menunggu data — assign datasource (device) ke widget ini.','overview');
+
+  if (D.gwt.present){
+    if (tankErr(ctx,'gwt','t1_level','t1_dist_cm')) add('danger','🔌','GWT Tank 1: sensor ultrasonik tidak terbaca (dist = -1)','water');
+    if (tankErr(ctx,'gwt','t2_level','t2_dist_cm')) add('danger','🔌','GWT Tank 2: sensor ultrasonik tidak terbaca (dist = -1)','water');
+    if (!tankErr(ctx,'gwt','t1_level','t1_dist_cm') && !tankErr(ctx,'gwt','t2_level','t2_dist_cm') && L(ctx,'gwt','balance_ok') && !truthy(Lr(ctx,'gwt','balance_ok')))
+      add('warn','⚖️','GWT tidak seimbang (selisih '+(Lv(ctx,'gwt','balance_diff')||0).toFixed(1)+'%) — cek valve balancing','water');
+    if (hasRain(ctx)){
+      var rl=lvlOf(ctx,'gwt','rw_level','rw_dist_cm');
+      if (tankErr(ctx,'gwt','rw_level','rw_dist_cm')) add('danger','🔌','Tangki hujan: sensor ultrasonik tidak terbaca','water');
+      else if (rl!=null && rl<cfg.rwLowPct) add('warn','🌧️','Tangki hujan rendah ('+rl.toFixed(0)+'%) — irigasi dialihkan ke GWT','water');
+      else if (rl!=null && rl>=cfg.rwOverflowPct) add('info','🌧️','Tangki hujan penuh ('+rl.toFixed(0)+'%) — air bisa meluap','water');
+    }
+  }
+  if (D.flow.present){
+    var fl=Lv(ctx,'flow','flow_lpm');
+    if (truthy(Lr(ctx,'flow','pump_running')) && fl!=null && fl<cfg.flowDryRunLpm) add('danger','⚠️','Transfer pump berjalan tapi tidak ada aliran (dry-run?)','water');
+  }
+  if (D.roof.present){
+    var lv=lvlOf(ctx,'roof','level_pct','distance_cm'), pr=Lv(ctx,'roof','pressure_bar');
+    if (tankErr(ctx,'roof','level_pct','distance_cm')) add('danger','🔌','Roof tank: sensor level tidak terbaca','water');
+    else if (lv!=null && lv<cfg.alarmLevelLow) add('warn','🏠','Roof tank rendah ('+lv.toFixed(0)+'%)','water');
+    else if (lv!=null && lv>=cfg.alarmLevelHigh) add('info','🏠','Roof tank hampir penuh ('+lv.toFixed(0)+'%)','water');
+    if (pr!=null && pr>cfg.pressureHighBar) add('danger','💨','Tekanan roof tinggi ('+pr.toFixed(2)+' bar)','water');
+    else if (pr!=null && pr<cfg.pressureLowBar && (truthy(Lr(ctx,'roof','pump1_status'))||truthy(Lr(ctx,'roof','pump2_status')))) add('warn','💨','Tekanan roof rendah saat booster ON ('+pr.toFixed(2)+' bar)','water');
+  }
+  cfg.irrigZones.forEach(function(z){
+    var i=zoneInfo(ctx,z); if(!i.present || !i.online) return;
+    if (i.fault===2) add('danger','🚰',z.label+': valve dipaksa tutup (batas waktu siram) — cek debit / sensor','irrigation');
+    if (i.status==='err') add('danger','🌱',z.label+': semua sensor tanah error','irrigation');
+    else {
+      var bad=i.raw.filter(function(v,k){ return v!=null && i.soils[k]==null; }).length;
+      if (bad) add('warn','🌱',z.label+': '+bad+' sensor tanah error — memakai sensor yang tersisa','irrigation');
+      if (i.mismatch) add('warn','🌱',z.label+': dua sensor tidak sinkron (kalibrasi / posisi probe)','irrigation');
+    }
+    if (i.on && i.avg!=null && i.avg>=i.wet) add('danger','💦',z.label+': valve OPEN padahal tanah sudah basah','irrigation');
+    if (i.on && i.onMs>cfg.valveMaxMin*60000) add('warn','💦',z.label+': valve ON > '+cfg.valveMaxMin+' menit','irrigation');
+    if (i.status==='dry' && i.autoMode===false && !i.on) add('warn','🌵',z.label+': kering ('+i.avg.toFixed(0)+'%) & mode MANUAL','irrigation');
+  });
+  var order={danger:0,warn:1,info:2};
+  A.sort(function(a,b){ return order[a.sev]-order[b.sev]; });
+  return A;
+}
+function renderAlerts(ctx){
+  var el=ctx.$('[data-alerts]'); if(!el) return;
+  var A=buildAlerts(ctx), ui=ctx.state.ui;
+  if (!A.length){ el.innerHTML='<div class="wtr-alerts-ok">✅ Semua sistem normal — tidak ada peringatan</div>'; return; }
+  var c={danger:0,warn:0,info:0}; A.forEach(function(a){ c[a.sev]++; });
+  var show = ui.alertsAll ? A : A.slice(0,3);
+  var html='<div class="wtr-alerts-hd">PERHATIAN '+
+    (c.danger?'<span class="wtr-pill danger">'+c.danger+' kritis</span>':'')+(c.warn?'<span class="wtr-pill warn">'+c.warn+' peringatan</span>':'')+(c.info?'<span class="wtr-pill info">'+c.info+' info</span>':'')+'</div>';
+  show.forEach(function(a){ html+='<button class="wtr-alert '+a.sev+'" data-goto="'+a.tab+'"><span>'+a.icon+'</span><span class="tx">'+esc(a.text)+'</span><span class="go">buka ›</span></button>'; });
+  if (A.length>3) html+='<button class="wtr-more" data-alerts-more>'+(ui.alertsAll?'▴ Sembunyikan':'▾ Lihat semua ('+A.length+')')+'</button>';
+  el.innerHTML=html;
+}
+function attachHover(ctx, name, svg){
+  if(!svg) return;
+  var box=svg.parentNode, line=box.querySelector('[data-xline="'+name+'"]'), tip=box.querySelector('[data-tip="'+name+'"]');
+  function hide(){ if(line) line.style.display='none'; if(tip) tip.style.display='none'; }
+  svg.addEventListener('mouseleave', hide);
+  svg.addEventListener('mousemove', function(ev){
+    var m=ctx.state.models[name]; if(!m){ hide(); return; }
+    var r=svg.getBoundingClientRect(), vx=(ev.clientX-r.left)/r.width*m.W;
+    if (vx<m.padL || vx>m.padL+m.cW){ hide(); return; }
+    var ts=m.fromTs+(vx-m.padL)/m.cW*m.spanMs, tol=Math.max(20*60000, m.spanMs/60), rows='';
+    m.series.forEach(function(s){
+      var p=nearestPt(s.data, ts, tol); if(!p) return;
+      var v=parseFloat(p[1]); if(isNaN(v)) return;
+      var extra=''; if (s.valve){ var st=lastBefore(s.valve, ts); if(st!=null) extra=' <span style="color:'+(truthy(st)?'#10b981':'#64748b')+'">'+(truthy(st)?'● OPEN':'○ closed')+'</span>'; }
+      rows+='<div class="r"><span><i style="background:'+s.color+'"></i>'+esc(s.label)+'</span><b>'+s.fmt(v)+extra+'</b></div>';
+    });
+    if(!rows){ hide(); return; }
+    var d=new Date(ts), left=(ev.clientX-r.left);
+    line.style.display='block'; line.style.left=left+'px';
+    tip.innerHTML='<div class="t">'+pad2(d.getDate())+'/'+pad2(d.getMonth()+1)+' '+pad2(d.getHours())+':'+pad2(d.getMinutes())+'</div>'+rows;
+    tip.style.display='block';
+    var tw=tip.offsetWidth; tip.style.left=Math.max(4, Math.min(r.width-tw-4, left+14 > r.width-tw-4 ? left-tw-14 : left+14))+'px';
+  });
+}
+function nearestPt(series, ts, tol){
+  if(!series||!series.length) return null;
+  var lo=0, hi=series.length-1;
+  while(lo<hi){ var mid=(lo+hi)>>1; if(series[mid][0]<ts) lo=mid+1; else hi=mid; }
+  var best=series[lo]; if(lo>0 && Math.abs(series[lo-1][0]-ts)<Math.abs(best[0]-ts)) best=series[lo-1];
+  return Math.abs(best[0]-ts)<=tol ? best : null;
+}
+function lastBefore(series, ts){ var v=null; for(var i=0;i<series.length;i++){ if(series[i][0]<=ts) v=series[i][1]; else break; } return v; }
 
 /* ============================ HELPERS ============================ */
 function bindBtn(rootEl, action, handler){ var b=rootEl.querySelector('[data-action="'+action+'"]'); if(b) b.addEventListener('click',handler); }

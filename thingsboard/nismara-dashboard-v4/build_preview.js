@@ -40,7 +40,7 @@ function snapshot(ts,hist){
   const t1=e?0:62+Math.sin(ts/9e5)*3, t2=e?0:60+Math.sin(ts/8e5)*3;
   put(DEV.gwt,'t1_level',ts,t1);put(DEV.gwt,'t1_vol_l',ts,t1*25);put(DEV.gwt,'t1_dist_cm',ts,e?-1:150-t1*1.3);
   put(DEV.gwt,'t2_level',ts,t2);put(DEV.gwt,'t2_vol_l',ts,t2*25);put(DEV.gwt,'t2_dist_cm',ts,e?-1:150-t2*1.3);
-  put(DEV.gwt,'balance_diff',ts,Math.abs(t1-t2));put(DEV.gwt,'balance_ok',ts,true);put(DEV.gwt,'rssi',ts,-71);put(DEV.gwt,'uptime_s',ts,59937+(ts-now0)/1000);put(DEV.gwt,'heap',ts,208740);
+  put(DEV.gwt,'balance_diff',ts,Math.abs(t1-t2));put(DEV.gwt,'balance_ok',ts,true);put(DEV.gwt,'rssi',ts,S.scn==='err'?-89:-71);put(DEV.gwt,'uptime_s',ts,59937+(ts-now0)/1000);put(DEV.gwt,'heap',ts,208740);
   put(DEV.gwt,'rw_level',ts,S.rw);put(DEV.gwt,'rw_vol_l',ts,S.rw*10);put(DEV.gwt,'rw_dist_cm',ts,120-S.rw);
   const rf=S.rain?rnd(9,15):0; put(DEV.gwt,'rw_flow_lpm',ts,rf);put(DEV.gwt,'rw_total_liters',ts,S.rwTot);put(DEV.gwt,'rw_pulses_win',ts,Math.round(rf*7.5*10));
   const fl=S.pump?rnd(21,24):0; put(DEV.flow,'flow_lpm',ts,fl);put(DEV.flow,'pump_running',ts,S.pump?1:0);put(DEV.flow,'total_liters',ts,S.flowTot);put(DEV.flow,'pulses_win',ts,Math.round(fl*10));put(DEV.flow,'rssi',ts,-64);put(DEV.flow,'uptime_s',ts,120000+(ts-now0)/1000);
@@ -51,7 +51,7 @@ function snapshot(ts,hist){
     put(d,p+'_auto',ts,z.auto);put(d,p+'_start_pct',ts,z.start);put(d,p+'_stop_pct',ts,z.stop);
     put(d,p+'_remain_s',ts,z.until>ts?Math.round((z.until-ts)/1000):0);put(d,p+'_cycles',ts,z.cycles);put(d,p+'_runtime_s',ts,z.run);put(d,p+'_fault',ts,0);
   }
-  ['irrG','irrR'].forEach(r=>{put(DEV[r],'rssi',ts,r==='irrG'?-67:-73);put(DEV[r],'uptime_s',ts,86400+(ts-now0)/1000);put(DEV[r],'heap',ts,231000);});
+  ['irrG','irrR'].forEach(r=>{put(DEV[r],'rssi',ts,r==='irrG'?-67:-87);put(DEV[r],'in_window',ts,1);put(DEV[r],'win',ts,'05-09,16-19');put(DEV[r],'uptime_s',ts,86400+(ts-now0)/1000);put(DEV[r],'heap',ts,231000);});
 }
 function step(ts,dtMin){   // satu langkah simulasi
   S.rw=Math.max(5,Math.min(98,S.rw+(S.rain?0.9*dtMin/5:-0.05*dtMin/5)));
