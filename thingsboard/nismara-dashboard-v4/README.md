@@ -1,4 +1,4 @@
-# NISMARA Water & Irrigation — dashboard v4
+# NISMARA Water & Irrigation — dashboard v5 (redesign)
 
 ```
 widget.html / widget.js     sumber widget (bisa di-paste manual ke tab HTML / JS widget Time series)

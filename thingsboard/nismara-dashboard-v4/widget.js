@@ -135,7 +135,7 @@ self.onInit = function() {
     b.setAttribute('role','tab');
     b.addEventListener('click', function(){
       rootEl.querySelectorAll('[data-tab-btn]').forEach(function(x){ x.classList.remove('active'); x.setAttribute('aria-selected','false'); });
-      b.classList.add('active'); b.setAttribute('aria-selected','true'); rootEl.setAttribute('data-tab', b.getAttribute('data-tab-btn'));
+      b.classList.add('active'); b.setAttribute('aria-selected','true'); setText(rootEl,'pageTitle', b.getAttribute('data-title')||''); rootEl.setAttribute('data-tab', b.getAttribute('data-tab-btn'));
       setTimeout(function(){ renderChart(ctx); renderIrrigChart(ctx); }, 0);
     });
   });
@@ -149,6 +149,19 @@ self.onInit = function() {
     });
   }
 
+  // theme (terang/gelap) - disimpan per browser bila diizinkan
+  var theme = (s.theme==='light'||s.theme==='dark') ? s.theme : 'dark';
+  try { var sv = window.localStorage.getItem('nismara_theme'); if (sv==='light'||sv==='dark') theme = sv; } catch(e){}
+  function applyTheme(t){ rootEl.setAttribute('data-theme', t); var tb=rootEl.querySelector('[data-theme-toggle]'); if(tb) tb.textContent = t==='dark' ? '☀️ Tema terang' : '🌙 Tema gelap'; }
+  applyTheme(theme);
+  var tgl = rootEl.querySelector('[data-theme-toggle]');
+  if (tgl) tgl.addEventListener('click', function(){
+    theme = rootEl.getAttribute('data-theme')==='dark' ? 'light' : 'dark'; applyTheme(theme);
+    try { window.localStorage.setItem('nismara_theme', theme); } catch(e){}
+    if (ctx._render) ctx._render();
+  });
+  var gardens = rootEl.querySelectorAll('[data-garden]');
+  gardens.forEach(function(g){ g.addEventListener('click', function(ev){ var z=ev.target.closest('[data-goto]'); if(z) gotoTab(ctx, z.getAttribute('data-goto')); }); });
   // attention center, schematic click-through, chart hover, freshness timer
   var alertsEl = rootEl.querySelector('[data-alerts]');
   if (alertsEl) alertsEl.addEventListener('click', function(ev){
@@ -177,6 +190,10 @@ self.onInit = function() {
     renderRoof(ctx);
     renderIrrigation(ctx);
     renderTrends(ctx);
+    renderHero(ctx);
+    renderGardenMap(ctx);
+    renderArcs(ctx);
+    renderSparks(ctx);
     renderAlerts(ctx);
     renderLive(ctx);
     renderRangeStats(ctx);
@@ -483,6 +500,7 @@ function renderHeader(ctx){
   toggle(ctx,'[data-roof-section]', ctx.state.dev.roof.present);
   var irr = ctx.state.dev.irrG.present || ctx.state.dev.irrR.present;
   toggle(ctx,'[data-irrig-section]', irr);
+  toggle(ctx,'[data-garden-section]', irr);
   toggle(ctx,'[data-irrig-chart-section]', irr);
 }
 function hasRain(ctx){ return !!(L(ctx,'gwt','rw_level') || L(ctx,'gwt','rw_flow_lpm') || L(ctx,'gwt','rw_total_liters')); }
@@ -996,70 +1014,46 @@ function sendAttrs(ctx, z, obj, okMsg, expect){
 }
 
 /* ============================ TANK SVG ============================ */
+/* silinder 3D: badan kaca + air bergradasi + permukaan elips + riak + gelembung */
+function cyl(x, yTop, w, h, pct, color, id, ticks){
+  pct=Math.max(0,Math.min(100,pct||0));
+  var rx=w/2, cx=x+rx, ry=Math.max(4,Math.min(10,w*0.12)), yBot=yTop+h;
+  var lvlY=yBot-(pct/100)*(h-ry);
+  var body='M'+x+','+yTop+' L'+x+','+yBot+' A'+rx+','+ry+' 0 0 0 '+(x+w)+','+yBot+' L'+(x+w)+','+yTop+' Z';
+  var s='<defs><linearGradient id="wg_'+id+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="'+color+'" stop-opacity=".92"/><stop offset="1" stop-color="'+color+'" stop-opacity=".5"/></linearGradient>'+
+    '<linearGradient id="sh_'+id+'" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity=".20"/><stop offset=".3" stop-color="#fff" stop-opacity=".03"/><stop offset=".72" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".26"/></linearGradient>'+
+    '<clipPath id="cp_'+id+'"><path d="'+body+'"/></clipPath></defs>';
+  if (ticks){ for (var k=0;k<=4;k++){ var yy=yBot-(k/4)*(h-ry); s+='<line x1="'+(x-5)+'" y1="'+yy.toFixed(1)+'" x2="'+(x-1)+'" y2="'+yy.toFixed(1)+'" stroke="rgba(148,163,184,.55)"/><text x="'+(x-7)+'" y="'+(yy+3).toFixed(1)+'" text-anchor="end" fill="#64748b" font-size="8">'+(k*25)+'</text>'; } }
+  s+='<path d="'+body+'" fill="rgba(148,163,184,.07)"/>';
+  if (pct>0.4){
+    s+='<g clip-path="url(#cp_'+id+')">'+
+      '<rect x="'+x+'" y="'+lvlY.toFixed(1)+'" width="'+w+'" height="'+(yBot+ry-lvlY+1).toFixed(1)+'" fill="url(#wg_'+id+')"/>'+
+      '<ellipse cx="'+cx+'" cy="'+lvlY.toFixed(1)+'" rx="'+rx+'" ry="'+ry+'" fill="'+color+'"/>'+
+      '<ellipse cx="'+cx+'" cy="'+lvlY.toFixed(1)+'" rx="'+rx+'" ry="'+ry+'" fill="#fff" opacity=".22"/>'+
+      '<ellipse class="wtr-rip" cx="'+cx+'" cy="'+lvlY.toFixed(1)+'" rx="'+(rx*0.9)+'" ry="'+(ry*0.85)+'" fill="none" stroke="#fff" stroke-width="1.2"/>'+
+      '<ellipse class="wtr-rip" style="animation-delay:1.6s" cx="'+cx+'" cy="'+lvlY.toFixed(1)+'" rx="'+(rx*0.9)+'" ry="'+(ry*0.85)+'" fill="none" stroke="#fff" stroke-width="1"/>';
+    if (w>36 && pct>6){ [0.3,0.55,0.74].forEach(function(f,i){ s+='<circle class="wtr-bub" style="animation-delay:'+(i*1.4)+'s" cx="'+(x+w*f).toFixed(1)+'" cy="'+(yBot-4).toFixed(1)+'" r="'+(1.6+i*0.5)+'" fill="#fff"/>'; }); }
+    s+='</g>';
+  }
+  s+='<g clip-path="url(#cp_'+id+')"><rect x="'+x+'" y="'+yTop+'" width="'+w+'" height="'+(h+ry)+'" fill="url(#sh_'+id+')"/></g>';
+  s+='<path d="'+body.replace(' Z','')+'" fill="none" stroke="rgba(148,163,184,.55)" stroke-width="1.4"/>';
+  s+='<ellipse cx="'+cx+'" cy="'+yTop+'" rx="'+rx+'" ry="'+ry+'" fill="rgba(255,255,255,.06)" stroke="rgba(148,163,184,.6)" stroke-width="1.4"/>';
+  return s;
+}
 function drawTank(ctx, svg, pct, W, H, color){
   if(!svg) return;
-  pct=Math.max(0,Math.min(100,pct||0));
-  var mX=22, topM=14, botM=14;
-  var tankW=W-2*mX, tankH=H-topM-botM;
-  var waterMaxH=tankH-12;
-  var fillH=(pct/100)*waterMaxH;
-  var tx=mX, ty=topM;
-  var waterY=ty+tankH-6-fillH;
-  var id=uid(svg);
-  var s='<defs><linearGradient id="g_'+id+'" x1="0" y1="0" x2="0" y2="1">'+
-    '<stop offset="0%" stop-color="'+color+'" stop-opacity="0.85"/>'+
-    '<stop offset="100%" stop-color="'+color+'" stop-opacity="0.55"/></linearGradient>'+
-    '<clipPath id="c_'+id+'"><rect x="'+(tx+2)+'" y="'+(ty+2)+'" width="'+(tankW-4)+'" height="'+(tankH-4)+'" rx="6"/></clipPath></defs>';
-  for (var k=0;k<=4;k++){ var yy=ty+6+(waterMaxH*k/4); var lbl=100-k*25;
-    s+='<line x1="'+(tx-4)+'" y1="'+yy+'" x2="'+tx+'" y2="'+yy+'" stroke="rgba(148,163,184,.5)" stroke-width="1"/>';
-    s+='<text x="'+(tx-6)+'" y="'+(yy+3)+'" text-anchor="end" fill="#64748b" font-size="8">'+lbl+'</text>';
-  }
-  s+='<rect x="'+tx+'" y="'+ty+'" width="'+tankW+'" height="'+tankH+'" rx="6" fill="rgba(255,255,255,.02)" stroke="rgba(148,163,184,.4)" stroke-width="1.5"/>';
-  if (fillH>0){
-    var x0=tx+4, x1=tx+tankW-4;
-    var wp='M'+x0+','+waterY, up=true;
-    for (var x=x0+14; x<=x1; x+=14){ wp+=' Q'+(x-7)+','+(waterY+(up?-3:3))+' '+x+','+waterY; up=!up; }
-    wp+=' L'+x1+','+(ty+tankH-6)+' L'+x0+','+(ty+tankH-6)+' Z';
-    s+='<g clip-path="url(#c_'+id+')"><path d="'+wp+'" fill="url(#g_'+id+')"/></g>';
-  }
-  s+='<rect x="'+(tx+tankW/2-10)+'" y="'+(ty-5)+'" width="20" height="5" rx="1" fill="rgba(148,163,184,.3)"/>';
-  svg.innerHTML=s;
+  svg.innerHTML = cyl(26, 24, 70, 158, pct, color, uid(svg), true);
 }
-
 function drawRoofTank(ctx, svg, pct, N){
   if(!svg) return;
-  pct=Math.max(0,Math.min(100,pct||0));
   N=Math.max(1,Math.min(N||1,8));
-  var W=280,H=200, mX=14, topM=12, botM=(N>1?22:14);
-  var availW=W-2*mX, tankH=H-topM-botM, cellW=availW/N;
-  var tankW = N===1?150 : N===2?70 : N===3?50 : N===4?38 : Math.max(20,cellW-6);
-  var rTop=N===1?8:4, waterMaxH=tankH-12, fillH=(pct/100)*waterMaxH;
-  function cx(i){ return mX+i*cellW+cellW/2; } function lx(i){ return cx(i)-tankW/2; }
-  var s='<defs><linearGradient id="rg" x1="0" y1="0" x2="0" y2="1">'+
-    '<stop offset="0%" stop-color="#22d3ee" stop-opacity="0.85"/>'+
-    '<stop offset="100%" stop-color="#0e7490" stop-opacity="0.92"/></linearGradient>';
-  for (var i=0;i<N;i++){ var tx0=lx(i); s+='<clipPath id="rc'+i+'"><rect x="'+(tx0+2)+'" y="'+(topM+2)+'" width="'+(tankW-4)+'" height="'+(tankH-4)+'" rx="'+rTop+'"/></clipPath>'; }
-  s+='</defs>';
-  var fx=lx(0);
-  for (var k=0;k<=4;k++){ var yy=topM+6+(waterMaxH*k/4); var lbl=100-k*25;
-    s+='<line x1="'+(fx-4)+'" y1="'+yy+'" x2="'+fx+'" y2="'+yy+'" stroke="rgba(148,163,184,.5)" stroke-width="1"/>';
-    s+='<text x="'+(fx-6)+'" y="'+(yy+3)+'" text-anchor="end" fill="#64748b" font-size="8">'+lbl+'</text>'; }
-  for (var i2=0;i2<N;i2++){
-    var tx=lx(i2), ty=topM, waterY=ty+tankH-6-fillH, sw=N===1?2:1.4;
-    s+='<rect x="'+tx+'" y="'+ty+'" width="'+tankW+'" height="'+tankH+'" rx="'+rTop+'" fill="rgba(255,255,255,.02)" stroke="rgba(148,163,184,.4)" stroke-width="'+sw+'"/>';
-    if (fillH>0){
-      var fc;
-      if (N===1 && fillH>4){ var x0=tx+4,x1=tx+tankW-4,wp='M'+x0+','+waterY,up=true;
-        for (var x=x0+16;x<=x1;x+=16){ wp+=' Q'+(x-8)+','+(waterY+(up?-3:3))+' '+x+','+waterY; up=!up; }
-        wp+=' L'+x1+','+(ty+tankH-6)+' L'+x0+','+(ty+tankH-6)+' Z'; fc='<path d="'+wp+'" fill="url(#rg)"/>'; }
-      else fc='<rect x="'+(tx+2)+'" y="'+waterY+'" width="'+(tankW-4)+'" height="'+(fillH+2)+'" fill="url(#rg)"/>';
-      s+='<g clip-path="url(#rc'+i2+')">'+fc+'</g>';
-    }
-    if (N>1) s+='<text x="'+cx(i2)+'" y="'+(topM+tankH+15)+'" text-anchor="middle" fill="#94a3b8" font-size="8" font-weight="700">T'+(i2+1)+'</text>';
-  }
-  if (N>1){ var pipeY=topM+tankH+4, f=cx(0), l=cx(N-1);
-    s+='<line x1="'+f+'" y1="'+pipeY+'" x2="'+l+'" y2="'+pipeY+'" stroke="rgba(34,211,238,.6)" stroke-width="2"/>';
-    for (var j=0;j<N;j++){ var jx=cx(j); s+='<line x1="'+jx+'" y1="'+(topM+tankH)+'" x2="'+jx+'" y2="'+pipeY+'" stroke="rgba(34,211,238,.6)" stroke-width="2"/>'; }
+  var W=280, mX=26, topM=22, h=134, availW=W-mX-12, gap=N>1?10:0;
+  var tankW = Math.min(N===1?150:90, (availW-gap*(N-1))/N);
+  var total=tankW*N+gap*(N-1), x0=mX+(availW-total)/2, id=uid(svg), s='';
+  for (var i=0;i<N;i++) s+=cyl(x0+i*(tankW+gap), topM, tankW, h, pct, '#22d3ee', id+i, i===0);
+  if (N>1){
+    var py=topM+h+24; s+='<line x1="'+(x0+tankW/2)+'" y1="'+py+'" x2="'+(x0+total-tankW/2)+'" y2="'+py+'" stroke="rgba(34,211,238,.6)" stroke-width="3" stroke-linecap="round"/>';
+    for (var k=0;k<N;k++){ var jx=x0+k*(tankW+gap)+tankW/2; s+='<line x1="'+jx+'" y1="'+(topM+h+10)+'" x2="'+jx+'" y2="'+py+'" stroke="rgba(34,211,238,.6)" stroke-width="3"/><text x="'+jx+'" y="'+(py+13)+'" text-anchor="middle" fill="#94a3b8" font-size="8" font-weight="700">T'+(k+1)+'</text>'; }
   }
   svg.innerHTML=s;
 }
@@ -1270,18 +1264,19 @@ function renderEvents(ctx){
   var listEl=ctx.$('[data-event-list]'), countEl=ctx.$('[data-bind="eventCount"]');
   var ev=ctx.state.events||[];
   if (countEl){ countEl.textContent='['+ev.length+']'; }
-  if (!ev.length){ if(listEl) listEl.innerHTML='<div class="wtr-event-empty">No events in selected range.</div>'; return; }
-  var html='';
+  if (!listEl) return;
+  if (!ev.length){ listEl.innerHTML='<div class="wtr-event-empty">Tidak ada event pada rentang waktu ini.</div>'; return; }
+  var html='', lastDay='', today=new Date(); today.setHours(0,0,0,0);
   ev.slice(0,80).forEach(function(e){
-    var d=new Date(e.ts);
-    var time=pad2(d.getDate())+'/'+pad2(d.getMonth()+1)+' '+pad2(d.getHours())+':'+pad2(d.getMinutes());
-    html+='<div class="wtr-event-item">'+
-      '<div class="wtr-event-type '+e.cls+'">'+esc(e.type)+'</div>'+
-      '<div class="wtr-event-time">'+time+'</div>'+
-      '<div class="wtr-event-badge '+e.cls+'" style="color:'+badgeColor(e.cls)+'">'+esc(e.badge)+'</div>'+
-    '</div>';
+    var d=new Date(e.ts), dd=new Date(e.ts); dd.setHours(0,0,0,0);
+    var diff=Math.round((today-dd)/86400000);
+    var day = diff===0?'Hari ini':diff===1?'Kemarin':pad2(d.getDate())+'/'+pad2(d.getMonth()+1)+'/'+d.getFullYear();
+    if (day!==lastDay){ html+='<div class="tl-day">'+day+'</div>'; lastDay=day; }
+    html+='<div class="tl-item"><span class="tl-dot '+e.cls+'"></span><div class="tl-tx">'+esc(e.type)+'</div>'+
+      '<div class="tl-tm">'+pad2(d.getHours())+':'+pad2(d.getMinutes())+'</div>'+
+      '<div class="tl-bd" style="color:'+badgeColor(e.cls)+'">'+esc(e.badge)+'</div></div>';
   });
-  if (listEl) listEl.innerHTML=html;
+  listEl.innerHTML=html;
 }
 function badgeColor(cls){ return cls==='bad'?'#ef4444':cls==='warn'?'#f59e0b':cls==='on'?'#10b981':cls==='rain'?'#2dd4bf':'#94a3b8'; }
 
@@ -1332,16 +1327,19 @@ function slopePerHour(series, windowMs){
   return (n*sxy-sx*sy)/den;
 }
 function fmtHours(h){ if(h<1) return Math.max(1,Math.round(h*60))+' menit'; if(h<48) return h.toFixed(h<10?1:0)+' jam'; return Math.round(h/24)+' hari'; }
-function setTrend(ctx, key, series, lvl, tankFull){
-  var el=ctx.$('[data-trend="'+key+'"]'); if(!el) return;
+function trendText(series, lvl){
   var sl=slopePerHour(series, 90*60000);
-  if (sl==null || lvl==null){ el.textContent=''; el.className='wtr-trend'; return; }
-  if (Math.abs(sl)<0.3){ el.textContent='→ stabil'; el.className='wtr-trend'; return; }
+  if (sl==null || lvl==null) return { txt:'', cls:'' };
+  if (Math.abs(sl)<0.3) return { txt:'→ stabil', cls:'' };
   var up=sl>0, eta='';
   if (up && lvl<100) eta=' · penuh ±'+fmtHours((100-lvl)/sl);
   if (!up && lvl>0)  eta=' · kosong ±'+fmtHours(lvl/(-sl));
   if (eta && ((up?(100-lvl)/sl:lvl/(-sl))>72)) eta='';
-  el.textContent=(up?'▲ +':'▼ ')+sl.toFixed(1)+'%/jam'+eta; el.className='wtr-trend '+(up?'up':'down');
+  return { txt:(up?'▲ +':'▼ ')+sl.toFixed(1)+'%/jam'+eta, cls:up?'up':'down' };
+}
+function setTrend(ctx, key, series, lvl){
+  var el=ctx.$('[data-trend="'+key+'"]'); if(!el) return;
+  var t=trendText(series,lvl); el.textContent=t.txt; el.className='wtr-trend '+t.cls;
 }
 function renderTrends(ctx){
   setTrend(ctx,'gwt1', vSeries(ctx,'gwt','t1_level','t1_dist_cm'), lvlOf(ctx,'gwt','t1_level','t1_dist_cm'));
@@ -1360,7 +1358,7 @@ function gotoTab(ctx, tab){
   var rootEl=ctx.state.rootEl;
   if (rootEl.getAttribute('data-nonav')==='1') return;
   var b=rootEl.querySelector('[data-tab-btn="'+tab+'"]'); if(b) b.click();
-  rootEl.scrollTop=0;
+  var mn=rootEl.querySelector('[data-main]'); if(mn) mn.scrollTop=0;
 }
 function buildAlerts(ctx){
   var A=[], cfg=ctx.cfg, D=ctx.state.dev;
@@ -1419,6 +1417,11 @@ function buildAlerts(ctx){
 function renderAlerts(ctx){
   var el=ctx.$('[data-alerts]'); if(!el) return;
   var A=buildAlerts(ctx), ui=ctx.state.ui;
+  ['water','irrigation'].forEach(function(t){
+    var b=ctx.$('[data-badge="'+t+'"]'); if(!b) return;
+    var n=A.filter(function(a){return a.tab===t && a.sev!=='info';}), d=n.some(function(a){return a.sev==='danger';});
+    b.textContent=n.length||''; b.className='bdg'+(n.length?' on':'')+(d?' danger':'');
+  });
   if (!A.length){ el.innerHTML='<div class="wtr-alerts-ok">✅ Semua sistem normal — tidak ada peringatan</div>'; return; }
   var c={danger:0,warn:0,info:0}; A.forEach(function(a){ c[a.sev]++; });
   var show = ui.alertsAll ? A : A.slice(0,3);
@@ -1460,6 +1463,140 @@ function nearestPt(series, ts, tol){
   return Math.abs(best[0]-ts)<=tol ? best : null;
 }
 function lastBefore(series, ts){ var v=null; for(var i=0;i<series.length;i++){ if(series[i][0]<=ts) v=series[i][1]; else break; } return v; }
+
+/* ============================ v5: HERO / GARDEN MAP / ARCS / SPARKS ============================ */
+function renderHero(ctx){
+  var ring=ctx.$('[data-hero-ring]'), leg=ctx.$('[data-hero-leg]'); if(!ring||!leg) return;
+  var cfg=ctx.cfg, items=[];
+  if (ctx.state.dev.gwt.present){
+    var v1=volOf(ctx,'gwt','t1_level','t1_dist_cm','gwtT1CapacityL','t1_vol_l'), v2=volOf(ctx,'gwt','t2_level','t2_dist_cm','gwtT2CapacityL','t2_vol_l');
+    var cap=(v1!=null?cfg.gwtT1CapacityL:0)+(v2!=null?cfg.gwtT2CapacityL:0), vol=sumVol(v1,v2);
+    var e1=tankErr(ctx,'gwt','t1_level','t1_dist_cm'), e2=tankErr(ctx,'gwt','t2_level','t2_dist_cm');
+    items.push({name:'GWT',sub:(e1||e2)?'sensor error':'2 tank',color:'#38bdf8',vol:vol,pct:cap?vol/cap*100:null,err:(e1&&e2),
+      trend:trendText(vSeries(ctx,'gwt','t1_level','t1_dist_cm'),lvlOf(ctx,'gwt','t1_level','t1_dist_cm'))});
+  }
+  if (ctx.state.dev.roof.present){
+    var rv=volOf(ctx,'roof','level_pct','distance_cm','roofTankCapacityL','volume_l'), rp=lvlOf(ctx,'roof','level_pct','distance_cm');
+    items.push({name:'Roof',sub:'booster',color:'#22d3ee',vol:rv,pct:rp,err:tankErr(ctx,'roof','level_pct','distance_cm'),trend:trendText(vSeries(ctx,'roof','level_pct','distance_cm'),rp)});
+  }
+  if (hasRain(ctx)){
+    var wv=volOf(ctx,'gwt','rw_level','rw_dist_cm','rwCapacityL','rw_vol_l'), wp=lvlOf(ctx,'gwt','rw_level','rw_dist_cm');
+    items.push({name:'Rain',sub:'tadah hujan',color:'#2dd4bf',vol:wv,pct:wp,err:tankErr(ctx,'gwt','rw_level','rw_dist_cm'),trend:trendText(vSeries(ctx,'gwt','rw_level','rw_dist_cm'),wp)});
+  }
+  var radii=[86,70,54], s='<svg viewBox="0 0 200 200">';
+  items.forEach(function(it,i){
+    var R=radii[i], C=2*Math.PI*R, p=it.pct==null?0:Math.max(0,Math.min(100,it.pct));
+    s+='<circle cx="100" cy="100" r="'+R+'" fill="none" style="stroke:'+(it.err?'rgba(239,68,68,.55)':'var(--ring)')+'" stroke-width="11"'+(it.err?' stroke-dasharray="3 5"':'')+'/>';
+    if (!it.err) s+='<circle cx="100" cy="100" r="'+R+'" fill="none" stroke="'+it.color+'" stroke-width="11" stroke-linecap="round" stroke-dasharray="'+(C*p/100)+' '+C+'" transform="rotate(-90 100 100)" style="transition:stroke-dasharray .8s ease"/>';
+  });
+  ring.innerHTML=s+'</svg>';
+  leg.innerHTML=items.map(function(it){
+    return '<div class="lg"><i style="background:'+it.color+'"></i><div class="n">'+it.name+'<small>'+it.sub+'</small></div><div class="p'+(it.err?' err':'')+'">'+(it.err?'ERR':(it.pct==null?'--':it.pct.toFixed(0)+'%'))+'</div>'+
+           '<div class="meta"><span class="v">'+(it.vol==null?'--':formatVol(it.vol))+'</span><span class="t '+it.trend.cls+'">'+esc(it.trend.txt)+'</span></div></div>';
+  }).join('') || '<div class="wtr-event-empty">Menunggu data tangki…</div>';
+}
+
+function soilColor(avg, status){
+  if (avg==null) return '#334155';
+  var hue=28+(Math.max(0,Math.min(100,avg))/100)*172;                 // cokelat -> hijau -> biru
+  return 'hsl('+hue.toFixed(0)+',52%,'+(26+avg*0.1).toFixed(0)+'%)';
+}
+function renderGardenMap(ctx){
+  var els=ctx.state.rootEl.querySelectorAll('[data-garden]'); if(!els.length) return;
+  var infos={}; ctx.cfg.irrigZones.forEach(function(z){ infos[z.id]=zoneInfo(ctx,z); });
+  var anyOn=ctx.cfg.irrigZones.some(function(z){ return infos[z.id].present && infos[z.id].on; });
+  var beds=[{role:'irrG',label:'GARDEN LT.1',x:14,w:580,ids:['g1','g2']},{role:'irrR',label:'GARDEN ROOF',x:614,w:272,ids:['r1']}];
+  var s='<svg class="garden-svg" viewBox="0 0 900 300"><defs>'+
+    '<pattern id="soilp" width="14" height="14" patternUnits="userSpaceOnUse"><circle cx="3" cy="4" r="1.1" fill="#000" opacity=".35"/><circle cx="10" cy="10" r="1.3" fill="#fff" opacity=".12"/></pattern></defs>';
+  s+='<line class="wtr-flow-pipe irr'+(anyOn?' active':'')+'" x1="0" y1="50" x2="900" y2="50"/>';
+  beds.forEach(function(b){
+    var dev=ctx.state.dev[b.role];
+    if (!dev.present){ s+='<rect x="'+b.x+'" y="66" width="'+b.w+'" height="216" rx="16" fill="none" stroke="rgba(148,163,184,.25)" stroke-dasharray="6 6"/><text x="'+(b.x+b.w/2)+'" y="178" text-anchor="middle" fill="#64748b" font-size="13" font-weight="700">'+b.label+' n/a</text>'; return; }
+    var online=devOnline(ctx,b.role);
+    s+='<text x="'+(b.x+6)+'" y="24" fill="#94a3b8" font-size="12" font-weight="800" letter-spacing="1.5">'+b.label+'</text>'+
+       '<text x="'+(b.x+b.w-6)+'" y="24" text-anchor="end" fill="'+(online?'#10b981':'#64748b')+'" font-size="10" font-weight="700">'+(online?'● online':'○ offline')+'</text>';
+    s+='<rect x="'+b.x+'" y="66" width="'+b.w+'" height="216" rx="16" fill="rgba(120,80,40,.16)" stroke="rgba(180,120,70,.55)" stroke-width="3"/>';
+    var n=b.ids.length, pad=12, zw=(b.w-pad*(n+1))/n;
+    b.ids.forEach(function(id,k){
+      var i=infos[id]; if(!i||!i.present) return;
+      var zx=b.x+pad+k*(zw+pad), zy=78, zh=192, cx=zx+zw/2, col=soilColor(i.avg,i.status);
+      var pill=i.status==='ok'?['OPTIMAL','#10b981']:i.status==='dry'?['DRY','#f59e0b']:i.status==='wet'?['WET','#60a5fa']:['SENSOR ERR','#ef4444'];
+      s+='<g data-goto="irrigation" style="cursor:pointer"><title>'+esc(i.z.label)+' — klik untuk kontrol</title>';
+      // valve + feeder
+      s+='<line class="wtr-flow-pipe irr'+(i.on?' active':'')+'" x1="'+cx+'" y1="50" x2="'+cx+'" y2="'+zy+'" style="stroke-width:4"/>'+
+         '<circle cx="'+cx+'" cy="50" r="11" fill="'+(i.on?'#10b981':'#475569')+'" stroke="rgba(255,255,255,.6)" stroke-width="1.5"'+(i.on?' class="wtr-pulse"':'')+'/><text x="'+cx+'" y="54" text-anchor="middle" fill="#fff" font-size="11" font-weight="800">V</text>';
+      s+='<rect x="'+zx+'" y="'+zy+'" width="'+zw+'" height="'+zh+'" rx="12" fill="'+col+'" style="transition:fill .8s"/>'+
+         '<rect x="'+zx+'" y="'+zy+'" width="'+zw+'" height="'+zh+'" rx="12" fill="url(#soilp)"/>'+
+         '<rect x="'+zx+'" y="'+zy+'" width="'+zw+'" height="'+zh+'" rx="12" fill="none" stroke="rgba(255,255,255,.18)"/>';
+      // tanaman
+      var plant=i.status==='dry'?'🥀':i.status==='wet'?'🌱':'🌿', cols=Math.max(3,Math.floor((zw*0.58)/40)), rows=2;
+      for (var r=0;r<rows;r++) for (var c=0;c<cols;c++){
+        var px=zx+zw*(0.4+0.58*(c+0.5)/cols), py=zy+92+r*30+((c%2)?8:0);
+        s+='<text x="'+px.toFixed(1)+'" y="'+py+'" text-anchor="middle" font-size="19" opacity=".9">'+plant+'</text>';
+      }
+      // sprinkler
+      var sy=zy+zh*0.5;
+      if (i.on){ for (var q=0;q<3;q++) s+='<circle class="wtr-spray" style="animation-delay:'+(q*0.5)+'s" cx="'+cx+'" cy="'+sy+'" r="'+(zw*0.26)+'" fill="none" stroke="#7dd3fc" stroke-width="2.5"/>'; s+='<text x="'+cx+'" y="'+(sy+6)+'" text-anchor="middle" font-size="20">💦</text>'; }
+      else s+='<circle cx="'+cx+'" cy="'+sy+'" r="5" fill="#94a3b8" opacity=".7"/>';
+      // probe sensor
+      [0.2,0.8].forEach(function(f,idx){
+        var px=zx+zw*f, py=zy+zh-38, raw=i.raw[idx], val=i.soils[idx], bad=(raw==null||val==null);
+        s+='<rect x="'+(px-1.5)+'" y="'+py+'" width="3" height="26" rx="1.5" fill="#e2e8f0" opacity=".85"/>'+
+           '<circle cx="'+px+'" cy="'+py+'" r="4" fill="'+(bad?'#ef4444':'#22d3ee')+'" stroke="#fff" stroke-width="1.2"/>'+
+           '<rect x="'+(px-20)+'" y="'+(py-24)+'" width="40" height="16" rx="8" fill="rgba(2,6,23,.72)"/>'+
+           '<text x="'+px+'" y="'+(py-12.5)+'" text-anchor="middle" fill="'+(bad?'#fca5a5':'#e2e8f0')+'" font-size="10" font-weight="800">'+(bad?'ERR':val.toFixed(0)+'%')+'</text>';
+      });
+      // label & nilai besar
+      var pw=pill[0].length*6.4+16;
+      s+='<text x="'+(zx+12)+'" y="'+(zy+22)+'" fill="#fff" font-size="12" font-weight="800" opacity=".9" style="paint-order:stroke" stroke="rgba(0,0,0,.35)" stroke-width="2">ZONE '+(infos[id].z.label.slice(-1))+'</text>'+
+         '<text x="'+(zx+12)+'" y="'+(zy+62)+'" fill="#fff" font-size="36" font-weight="800" style="paint-order:stroke" stroke="rgba(0,0,0,.35)" stroke-width="3">'+(i.avg==null?'--':i.avg.toFixed(0)+'%')+'</text>'+
+         '<rect x="'+(zx+zw-12-pw)+'" y="'+(zy+10)+'" width="'+pw+'" height="17" rx="8.5" fill="'+pill[1]+'"/>'+
+         '<text x="'+(zx+zw-12-pw/2)+'" y="'+(zy+22)+'" text-anchor="middle" fill="#fff" font-size="9.5" font-weight="800">'+pill[0]+'</text>';
+      if (i.on && i.remainS>0) s+='<text x="'+(zx+12)+'" y="'+(zy+80)+'" fill="#d1fae5" font-size="11" font-weight="800">⏱ '+formatRuntime(i.remainS)+'</text>';
+      s+='</g>';
+    });
+  });
+  s+='</svg>';
+  els.forEach(function(el){ el.innerHTML=s; });
+}
+
+function arcGauge(pct, color, vTxt, unit, maxTxt){
+  var L=Math.PI*46, p=Math.max(0,Math.min(100,pct||0));
+  return '<svg viewBox="0 0 120 78"><path d="M14,64 A46,46 0 0 1 106,64" fill="none" style="stroke:var(--ring)" stroke-width="10" stroke-linecap="round"/>'+
+    '<path d="M14,64 A46,46 0 0 1 106,64" fill="none" stroke="'+color+'" stroke-width="10" stroke-linecap="round" stroke-dasharray="'+(L*p/100).toFixed(1)+' '+L.toFixed(1)+'" style="transition:stroke-dasharray .7s ease"/>'+
+    '<text class="arc-v" x="60" y="56" text-anchor="middle">'+vTxt+'</text><text class="arc-u" x="60" y="68" text-anchor="middle">'+unit+'</text>'+
+    '<text class="arc-m" x="14" y="76" text-anchor="middle">0</text><text class="arc-m" x="106" y="76" text-anchor="middle">'+maxTxt+'</text></svg>';
+}
+function renderArcs(ctx){
+  var cfg=ctx.cfg, el;
+  if ((el=ctx.$('[data-arc="flow"]'))){ var f=Lv(ctx,'flow','flow_lpm'); el.innerHTML=arcGauge(f==null?0:f/cfg.flowMaxLpm*100,'#a78bfa',f==null?'--':f.toFixed(1),'L/min',Math.round(cfg.flowMaxLpm)); }
+  if ((el=ctx.$('[data-arc="rw"]'))){ var r=Lv(ctx,'gwt','rw_flow_lpm'); el.innerHTML=arcGauge(r==null?0:r/cfg.rwFlowMaxLpm*100,'#2dd4bf',r==null?'--':r.toFixed(1),'L/min',Math.round(cfg.rwFlowMaxLpm)); }
+  if ((el=ctx.$('[data-arc="press"]'))){ var p=Lv(ctx,'roof','pressure_bar'), col=(p!=null&&p<cfg.pressureLowBar)?'#f59e0b':(p!=null&&p>cfg.pressureHighBar)?'#ef4444':'#22d3ee';
+    el.innerHTML=arcGauge(p==null?0:p/cfg.pressureMaxBar*100,col,p==null?'--':p.toFixed(2),'bar',Math.round(cfg.pressureMaxBar)); }
+}
+function miniSpark(el, series, color, ymax, multi){
+  if(!el) return;
+  var sets = multi ? series : [{data:series,color:color}], out='', t0=Infinity, t1=-Infinity;
+  sets.forEach(function(s){ if(s.data.length){ t0=Math.min(t0,s.data[0][0]); t1=Math.max(t1,s.data[s.data.length-1][0]); } });
+  if (!isFinite(t0) || t1<=t0){ el.innerHTML='<text x="50" y="20" text-anchor="middle" fill="#64748b" font-size="7">no history</text>'; return; }
+  var span=t1-t0, gid='sg'+Math.random().toString(36).slice(2,6);
+  sets.forEach(function(s,k){
+    var d=s.data; if (d.length>140){ var st=Math.ceil(d.length/140); d=d.filter(function(_,i){return i%st===0;}); }
+    var vals=d.map(function(p){return parseFloat(p[1]);}).filter(function(v){return !isNaN(v);}); if(vals.length<2) return;
+    var mx=ymax||Math.max(1,Math.max.apply(null,vals)*1.15);
+    var pts=d.map(function(p){ var v=parseFloat(p[1]); return ((p[0]-t0)/span*100).toFixed(1)+','+(31-Math.max(0,Math.min(1,v/mx))*28).toFixed(1); });
+    if (!multi) out+='<defs><linearGradient id="'+gid+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="'+s.color+'" stop-opacity=".35"/><stop offset="1" stop-color="'+s.color+'" stop-opacity="0"/></linearGradient></defs><polygon points="0,32 '+pts.join(' ')+' 100,32" fill="url(#'+gid+')"/>';
+    out+='<polyline points="'+pts.join(' ')+'" fill="none" stroke="'+s.color+'" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>';
+  });
+  el.innerHTML=out;
+}
+function renderSparks(ctx){
+  miniSpark(ctx.$('[data-spark="flow"]'), S(ctx,'flow','flow_lpm'), '#a78bfa', null);
+  miniSpark(ctx.$('[data-spark="rain"]'), S(ctx,'gwt','rw_flow_lpm'), '#2dd4bf', null);
+  miniSpark(ctx.$('[data-spark="bal"]'), S(ctx,'gwt','balance_diff'), '#f59e0b', null);
+  var multi=ctx.cfg.irrigZones.filter(function(z){return ctx.state.dev[z.role].present;}).map(function(z){ return {data:zoneAvgSeries(ctx,z),color:z.color}; });
+  miniSpark(ctx.$('[data-spark="irr"]'), multi, null, 100, true);
+}
 
 /* ============================ HELPERS ============================ */
 function bindBtn(rootEl, action, handler){ var b=rootEl.querySelector('[data-action="'+action+'"]'); if(b) b.addEventListener('click',handler); }
