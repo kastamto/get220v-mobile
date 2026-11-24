@@ -1,5 +1,9 @@
 # NISMARA — Pin config & wiring
 
+> Diagram visual: `schematics/schematics.html` (galeri, bisa di-print ke PDF) atau SVG per device di folder `schematics/`
+> (`*_wiring.svg` = skematik wiring, `*_pinout.svg` = peta pin board). Regenerasi: `node schematics/build_schematics.js`.
+> Jika pin di `config.h` diubah, ubah juga definisinya di `build_schematics.js`.
+
 Semua pin bisa diubah di `config.h` masing-masing sketch. Board: ESP32 DevKit (30/38 pin).
 
 ## 1. nismara_gwt  (GWT 2 tank + rain tank + flow 1")
