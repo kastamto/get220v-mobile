@@ -65,6 +65,7 @@
 #define MIN_OFF_S           600UL               // jeda minimum antar siram (air meresap)
 #define MAX_MANUAL_MIN      60UL
 #define BUTTON_MANUAL_MIN   5UL                 // durasi saat tombol fisik ditekan
+#define RPC_DEFAULT_MIN     10UL                // durasi bila RPC 'ON' tanpa parameter minutes (valve tidak pernah ON tanpa batas waktu)
 
 /* ---------------- JENDELA WAKTU SIRAM (NTP) ----------------
  * Auto hanya MULAI siram di dalam jendela. Stop tidak dibatasi.

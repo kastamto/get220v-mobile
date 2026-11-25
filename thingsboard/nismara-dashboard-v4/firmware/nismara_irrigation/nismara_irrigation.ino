@@ -9,6 +9,17 @@
  *           tutup bila semua sensor zona error, watchdog
  *  Manual : tombol fisik per zona + perintah dashboard
  *
+ *  KONTROL RELAY / VALVE via RPC (server-side RPC ThingsBoard, request/response):
+ *     setValve   {"zone":1,"state":true,"minutes":10}   ON (maks MAX_MANUAL_MIN) / {"zone":1,"state":false} OFF
+ *     setValveN  params true|false  (N = nomor zona, mis. setValve2)   -> cocok utk widget "Switch control"
+ *     getValveN  -> true|false                                          -> pasangan setValveN
+ *     setRelay / getRelay = alias setValve / getValve
+ *     setAuto    {"zone":1,"auto":true}
+ *     setThresholds {"zone":1,"start":30,"stop":55}
+ *     getState   {"zone":1} (tanpa zone = semua zona)
+ *     closeAll
+ *  RPC ON tanpa "minutes" = RPC_DEFAULT_MIN menit. Valve tidak pernah menyala tanpa batas waktu.
+ *
  *  Kontrol dashboard = SHARED ATTRIBUTES:
  *     zN_cmd "open|<menit>|<ts>" / "close|0|<ts>"   zN_auto true/false
  *     zN_start_pct   zN_stop_pct
@@ -203,7 +214,85 @@ void applyAttrs(JsonObjectConst o) {
     if (o[k].is<const char*>()) applyCmd(i, String(o[k].as<const char*>()));
   }
 }
+/* ---------------- RPC (v1/devices/me/rpc/request/<id>  ->  .../response/<id>) ---------------- */
+bool parseOn(JsonVariantConst v, bool& on) {
+  if (v.is<bool>()) { on = v.as<bool>(); return true; }
+  if (v.is<int>())  { on = v.as<int>() != 0; return true; }
+  if (v.is<const char*>()) {
+    String t = v.as<const char*>(); t.toLowerCase();
+    if (t == "on" || t == "open" || t == "true" || t == "1")  { on = true;  return true; }
+    if (t == "off" || t == "close" || t == "false" || t == "0") { on = false; return true; }
+  }
+  return false;
+}
+void rpcSend(const char* id, const char* json) {
+  char t[64]; snprintf(t, sizeof(t), "v1/devices/me/rpc/response/%s", id);
+  mqtt.publish(t, json);
+}
+void zoneJson(int i, JsonObject o) {
+  Zone& z = Z[i];
+  o["zone"] = i + 1; o["valve"] = z.valve; o["auto"] = z.autoMode;
+  o["soil"] = z.avgOk ? roundf(z.avg * 10) / 10 : -1; o["start_pct"] = z.startPct; o["stop_pct"] = z.stopPct;
+  o["remain_s"] = (z.valve && z.manualRun) ? (int)max(0, (int)((int32_t)(z.manualUntil - millis()) / 1000)) : 0;
+  o["fault"] = z.fault;
+}
+void rpcError(const char* id, const char* msg) { JsonDocument d; d["error"] = msg; char b[120]; serializeJson(d, b, sizeof(b)); rpcSend(id, b); }
+
+void handleRpc(const char* id, JsonDocument& req) {
+  String method = (const char*)(req["method"] | "");
+  JsonVariantConst p = req["params"];
+  int zone = 1;
+  String base = method; int n = base.length();
+  if (n > 0 && isDigit(base[n - 1])) { zone = base[n - 1] - '0'; base.remove(n - 1); }       // setValve2 / getValve2
+  if (p.is<JsonObjectConst>() && p["zone"].is<int>()) zone = p["zone"].as<int>();
+  bool zoneOk = zone >= 1 && zone <= NZONES; int zi = zone - 1;
+  char buf[400];
+
+  if (base == "setValve" || base == "setRelay" || base == "setValue") {
+    if (!zoneOk) { rpcError(id, "zone tidak valid"); return; }
+    bool on; JsonVariantConst sv = p.is<JsonObjectConst>() ? (p["state"].isNull() ? p["value"] : p["state"]) : p;
+    if (!parseOn(sv, on)) { rpcError(id, "params state tidak valid (true/false)"); return; }
+    if (on) {
+      uint32_t minutes = p.is<JsonObjectConst>() ? (uint32_t)(p["minutes"] | (int)RPC_DEFAULT_MIN) : RPC_DEFAULT_MIN;
+      manualOpen(zi, minutes);
+    } else { Z[zi].manualRun = false; closeValve(zi); }
+    JsonDocument d; zoneJson(zi, d.to<JsonObject>()); serializeJson(d, buf, sizeof(buf)); rpcSend(id, buf);
+  } else if (base == "getValve" || base == "getRelay" || base == "getValue") {
+    if (!zoneOk) { rpcError(id, "zone tidak valid"); return; }
+    if (method.length() > base.length()) rpcSend(id, Z[zi].valve ? "true" : "false");           // getValveN -> boolean (widget Switch)
+    else { JsonDocument d; zoneJson(zi, d.to<JsonObject>()); serializeJson(d, buf, sizeof(buf)); rpcSend(id, buf); }
+  } else if (base == "setAuto") {
+    if (!zoneOk) { rpcError(id, "zone tidak valid"); return; }
+    bool a; JsonVariantConst av = p.is<JsonObjectConst>() ? p["auto"] : p;
+    if (!parseOn(av, a)) { rpcError(id, "params auto tidak valid"); return; }
+    Z[zi].autoMode = a; if (!a && !Z[zi].manualRun) closeValve(zi);
+    saveZone(zi); publishNow = true;
+    JsonDocument d; zoneJson(zi, d.to<JsonObject>()); serializeJson(d, buf, sizeof(buf)); rpcSend(id, buf);
+  } else if (base == "setThresholds") {
+    if (!zoneOk) { rpcError(id, "zone tidak valid"); return; }
+    float s = p["start"] | -1.0f, e = p["stop"] | -1.0f;
+    if (s < 0 || e > 100 || e <= s) { rpcError(id, "start/stop tidak valid (0<=start<stop<=100)"); return; }
+    Z[zi].startPct = s; Z[zi].stopPct = e; saveZone(zi); publishNow = true;
+    JsonDocument d; zoneJson(zi, d.to<JsonObject>()); serializeJson(d, buf, sizeof(buf)); rpcSend(id, buf);
+  } else if (base == "getState") {
+    JsonDocument d;
+    if (p.is<JsonObjectConst>() && p["zone"].is<int>()) { if (!zoneOk) { rpcError(id, "zone tidak valid"); return; } zoneJson(zi, d.to<JsonObject>()); }
+    else { JsonArray a = d["zones"].to<JsonArray>(); for (int i = 0; i < NZONES; i++) zoneJson(i, a.add<JsonObject>()); d["fw"] = FW_VERSION; }
+    serializeJson(d, buf, sizeof(buf)); rpcSend(id, buf);
+  } else if (base == "closeAll") {
+    for (int i = 0; i < NZONES; i++) { Z[i].manualRun = false; closeValve(i); }
+    rpcSend(id, "{\"ok\":true}");
+  } else rpcError(id, "method tidak dikenal");
+}
+
 void onMqtt(char* topic, byte* payload, unsigned int len) {
+  static const char RPC_REQ[] = "v1/devices/me/rpc/request/";
+  if (strncmp(topic, RPC_REQ, sizeof(RPC_REQ) - 1) == 0) {
+    JsonDocument req;
+    if (deserializeJson(req, payload, len)) { rpcError(topic + sizeof(RPC_REQ) - 1, "JSON tidak valid"); return; }
+    handleRpc(topic + sizeof(RPC_REQ) - 1, req);
+    return;
+  }
   JsonDocument doc;
   if (deserializeJson(doc, payload, len)) return;
   JsonObjectConst o = doc["shared"].is<JsonObjectConst>() ? doc["shared"].as<JsonObjectConst>() : doc.as<JsonObjectConst>();
@@ -256,6 +345,7 @@ void netLoop() {
       if (mqtt.connect(id.c_str(), TB_TOKEN, NULL)) {
         mqtt.subscribe("v1/devices/me/attributes");
         mqtt.subscribe("v1/devices/me/attributes/response/+");
+        mqtt.subscribe("v1/devices/me/rpc/request/+");
         requestSharedAttrs(); publishNow = true;
       }
     }
