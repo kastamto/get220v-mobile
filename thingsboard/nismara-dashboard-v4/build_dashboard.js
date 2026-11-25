@@ -3,6 +3,7 @@
 const fs = require('fs'), crypto = require('crypto');
 const uuid = () => crypto.randomUUID();
 const ALIAS_NAME = 'NISMARA Devices';
+const SCOPE = process.env.WIDGET_SCOPE || 'tenant';           // 'tenant' (default) atau 'system' bila bundle diimpor sebagai system
 const NAME_PREFIX = process.env.NAME_PREFIX || 'nismara';     // semua device yang namanya diawali ini
 
 const KEYS = [
@@ -27,7 +28,8 @@ const dataKey = (name) => ({ name, type: 'timeseries', label: name, color: '#219
 function build(opts) {
   const aliasId = uuid(), wid = uuid();
   const widget = {
-    typeFullFqn: `nismara_water.${opts.widget}`, bundleAlias: 'nismara_water', typeAlias: opts.widget,
+    // 3.6+: widget tenant dirujuk 'tenant.<fqn>' (system = 'system.<fqn>'); bundleAlias/typeAlias/isSystemType = format lama (<3.6)
+    typeFullFqn: `${SCOPE}.nismara_water.${opts.widget}`, bundleAlias: 'nismara_water', typeAlias: opts.widget, isSystemType: false,
     type: 'timeseries', title: opts.widgetTitle, image: null, description: null,
     sizeX: 24, sizeY: 24, row: 0, col: 0, id: wid,
     config: {

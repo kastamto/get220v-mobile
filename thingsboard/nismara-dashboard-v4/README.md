@@ -22,6 +22,12 @@ Jika nama device Anda berbeda: Dashboard → Edit → Entity aliases → ubah *n
 `NAME_PREFIX=awalan node build_dashboard.js` lalu import ulang.
 Garden Roof harus punya kata "roof"/"atap" di namanya; Garden Lt.1 tidak boleh.
 
+### Jika muncul "Problem loading widget configuration"
+Artinya dashboard tidak menemukan tipe widget. Cek: (1) bundle sudah di-import lebih dulu; (2) di Widgets Library, bundle
+**NISMARA Water & Irrigation** berisi 3 widget; (3) jika bundle Anda ter-import sebagai *system* (bukan tenant),
+buat ulang dashboard dengan `WIDGET_SCOPE=system node build_dashboard.js`. Cara paling aman: di dashboard klik
+widget → Edit → hapus lalu **Add widget** dari bundle NISMARA, kemudian set datasource ke alias "NISMARA Devices".
+
 ## Import widget saja
 Widgets Library → Widgets bundles → Import → `nismara_water_bundle.json`
 Berisi 3 widget: **Water System Overview** (semua tab), **Water System**, **Smart Irrigation**.

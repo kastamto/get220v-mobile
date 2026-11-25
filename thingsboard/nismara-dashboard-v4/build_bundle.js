@@ -42,7 +42,7 @@ const defaultConfig = (title, view, sx, sy) => JSON.stringify({
 });
 
 const mk = (slug, name, desc, view, sx, sy) => ({
-  name, fqn: `${ALIAS}.${slug}`, deprecated: false, scada: false, image: null, description: desc, tags: ['nismara', 'water', 'irrigation', 'siaga'],
+  name, fqn: `${ALIAS}.${slug}`, alias: slug, bundleAlias: ALIAS, deprecated: false, scada: false, image: null, description: desc, tags: ['nismara', 'water', 'irrigation', 'siaga'],
   descriptor: {
     type: 'timeseries', sizeX: sx, sizeY: sy, resources: [],
     templateHtml: html, templateCss: '', controllerScript: js,

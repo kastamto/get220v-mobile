@@ -17,6 +17,8 @@
     {
       "name": "NISMARA Water System Overview",
       "fqn": "nismara_water.water_system_overview",
+      "alias": "water_system_overview",
+      "bundleAlias": "nismara_water",
       "deprecated": false,
       "scada": false,
       "image": null,
@@ -47,6 +49,8 @@
     {
       "name": "NISMARA Water System",
       "fqn": "nismara_water.water_system",
+      "alias": "water_system",
+      "bundleAlias": "nismara_water",
       "deprecated": false,
       "scada": false,
       "image": null,
@@ -77,6 +81,8 @@
     {
       "name": "NISMARA Smart Irrigation",
       "fqn": "nismara_water.smart_irrigation",
+      "alias": "smart_irrigation",
+      "bundleAlias": "nismara_water",
       "deprecated": false,
       "scada": false,
       "image": null,
