@@ -240,7 +240,117 @@ const PIN_ROOF = pinout('Pin config — NISMARA Garden Roof', 'config.h: PROFILE
   VIN: U('+5V masuk', COL.pwr), '3V3': U('3V3 → soil sensor', COL.v33), GND: U('GND', COL.gnd)
 }, pinNotes);
 
-const files = { gwt_wiring: GWT, gwt_pinout: PIN_GWT, irrigation_lt1_wiring: LT1, irrigation_lt1_pinout: PIN_LT1, irrigation_roof_wiring: ROOF, irrigation_roof_pinout: PIN_ROOF };
+
+/* ====================== DETAIL WIRING SOIL SENSOR ====================== */
+function soilDiagram() {
+  const W = 1060; let b = '';
+  b += T(W / 2, 30, 'Soil Moisture Sensor — Detail Wiring', { size: 20, anchor: 'middle', w: 700 });
+  b += T(W / 2, 50, 'Capacitive v1.2 (3 pin: GND · VCC · AOUT) → ESP32 ADC1 · contoh Garden Lt.1 (4 sensor). Garden Roof = Z1-S1 & Z1-S2 saja.', { size: 11.5, anchor: 'middle', fill: '#64748b' });
+
+  /* ---- A. wiring 4 sensor -> ESP32 ---- */
+  b += T(30, 86, 'A. Sambungan ke ESP32', { size: 13.5, w: 700 });
+  const sens = [['Z1 · Sensor 1', 'GPIO34'], ['Z1 · Sensor 2', 'GPIO35'], ['Z2 · Sensor 1', 'GPIO32'], ['Z2 · Sensor 2', 'GPIO33']];
+  const x0 = 40, sw = 200, sh = 96, top0 = 160, gap = 26, railV = 470, railG = 505, espX = 700, espW = 230;
+  const espTop = top0 - 70, espBot = top0 + sens.length * (sh + gap) - gap + 10;
+  // rails
+  b += `<line x1="${railV}" y1="${top0 - 36}" x2="${railV}" y2="${espBot - 6}" stroke="${COL.v33}" stroke-width="3.2"/>` + T(railV, top0 - 44, '+3V3', { size: 11, anchor: 'middle', fill: COL.v33, w: 700 });
+  b += `<line x1="${railG}" y1="${top0 - 20}" x2="${railG}" y2="${espBot - 6}" stroke="${COL.gnd}" stroke-width="3.2"/>` + T(railG, top0 - 28, 'GND', { size: 11, anchor: 'middle', w: 700 });
+  // esp
+  b += `<rect x="${espX}" y="${espTop}" width="${espW}" height="${espBot - espTop}" rx="10" fill="#0f172a"/>` + T(espX + espW / 2, espTop + 16, 'ESP32 DevKit', { size: 13, anchor: 'middle', fill: '#fff', w: 700 });
+  b += `<polyline points="${espX},${top0 - 36} ${railV},${top0 - 36}" fill="none" stroke="${COL.v33}" stroke-width="2.6"/>` + dot(railV, top0 - 36, COL.v33) +
+    `<circle cx="${espX}" cy="${top0 - 36}" r="4" fill="#fff"/>` + T(espX + 10, top0 - 32, '3V3 (pin 3V3)', { size: 11, fill: '#fff', w: 700 });
+  b += `<polyline points="${espX},${top0 - 20} ${railG},${top0 - 20}" fill="none" stroke="${COL.gnd}" stroke-width="2.6"/>` + dot(railG, top0 - 20) +
+    `<circle cx="${espX}" cy="${top0 - 20}" r="4" fill="#fff"/>` + T(espX + 10, top0 - 16, 'GND (pin GND)', { size: 11, fill: '#fff', w: 700 });
+  sens.forEach((sn, i) => {
+    const y = top0 + i * (sh + gap), px = x0 + sw;
+    // papan sensor
+    b += `<rect x="${x0}" y="${y}" width="${sw}" height="${sh}" rx="8" fill="#ecfdf5" stroke="#0d9488" stroke-width="1.8"/>` + T(x0 + sw / 2 - 14, y + 18, sn[0], { size: 12, anchor: 'middle', w: 700 }) +
+      T(x0 + sw / 2 - 14, y + 32, 'Capacitive v1.2', { size: 9.5, anchor: 'middle', fill: '#64748b' });
+    // 3 pin: VCC(merah) AOUT(kuning) GND(hitam)
+    const pins = [['VCC', 30, COL.pwr, '#dc2626'], ['AOUT', 58, '#ca8a04', '#eab308'], ['GND', 86 - 4, '#111827', '#111827']];
+    const py = { VCC: y + 52, AOUT: y + 66, GND: y + 80 };
+    [['VCC', py.VCC, '#dc2626'], ['AOUT', py.AOUT, '#eab308'], ['GND', py.GND, '#111827']].forEach(([n, yy, col]) => {
+      b += T(px - 8, yy + 4, n, { size: 11, anchor: 'end', w: 700 }) + `<line x1="${px}" y1="${yy}" x2="${px + 14}" y2="${yy}" stroke="${col}" stroke-width="2.6"/>`;
+    });
+    // kabel merah ke rail 3V3
+    b += `<polyline points="${px + 14},${py.VCC} ${px + 40 + i * 4},${py.VCC} ${px + 40 + i * 4},${y - 4 - 0} ${railV},${y - 4}" fill="none" stroke="#dc2626" stroke-width="2.4" stroke-linejoin="round"/>`;
+    b += dot(railV, y - 4, '#dc2626');
+    // kabel hitam ke rail GND
+    const bx = px + 100 + i * 4;
+    b += `<polyline points="${px + 14},${py.GND} ${bx},${py.GND} ${bx},${y + sh + 8} ${railG},${y + sh + 8}" fill="none" stroke="#111827" stroke-width="2.4" stroke-linejoin="round"/>` + dot(railG, y + sh + 8);
+    // kabel kuning ke GPIO (melewati rail) + kapasitor 100nF
+    b += `<line x1="${px + 14}" y1="${py.AOUT}" x2="${espX}" y2="${py.AOUT}" stroke="#eab308" stroke-width="2.6"/>`;
+    b += `<circle cx="${espX}" cy="${py.AOUT}" r="4" fill="#fff"/>` + T(espX + 12, py.AOUT + 4, sn[1] + '  (ADC1)', { size: 12, fill: '#fff', w: 700 });
+    const cx = 600 + 0; b += dot(cx, py.AOUT, '#eab308') + `<line x1="${cx}" y1="${py.AOUT}" x2="${cx}" y2="${py.AOUT + 8}" stroke="#eab308" stroke-width="2"/>` +
+      `<line x1="${cx - 9}" y1="${py.AOUT + 8}" x2="${cx + 9}" y2="${py.AOUT + 8}" stroke="#111827" stroke-width="2.2"/><line x1="${cx - 9}" y1="${py.AOUT + 13}" x2="${cx + 9}" y2="${py.AOUT + 13}" stroke="#111827" stroke-width="2.2"/>` +
+      `<line x1="${cx}" y1="${py.AOUT + 13}" x2="${cx}" y2="${py.AOUT + 20}" stroke="#111827" stroke-width="1.8"/>` + gndSym(cx, py.AOUT + 20) + T(cx + 13, py.AOUT + 14, '100 nF', { size: 9, w: 700 });
+    // rail hop marks (lompatan kabel kuning melintasi rail)
+    [railV, railG].forEach(rx => b += `<path d="M${rx - 5},${py.AOUT} a5,5 0 0 1 10,0" fill="#fff" stroke="#eab308" stroke-width="2.6"/>`);
+  });
+  b += T(railV + 6, espBot + 12, 'kabel kuning melintasi rail tanpa terhubung (hop)', { size: 9, fill: '#64748b', italic: true });
+
+  /* ---- B. close-up papan sensor + C. pemasangan ---- */
+  const y1 = espBot + 50;
+  b += T(30, y1, 'B. Papan sensor (capacitive v1.2)', { size: 13.5, w: 700 }) + T(400, y1, 'C. Pemasangan di tanah', { size: 13.5, w: 700 }) + T(790, y1, 'D. Kabel & proteksi', { size: 13.5, w: 700 });
+  // B: PCB
+  const bx0 = 110, by0 = y1 + 56, bw = 80, bh = 270;
+  b += `<rect x="${bx0}" y="${by0}" width="${bw}" height="${bh}" rx="6" fill="#065f46" stroke="#022c22" stroke-width="2"/>` +
+    `<rect x="${bx0 + 8}" y="${by0 + 130}" width="${bw - 16}" height="${bh - 140}" rx="3" fill="#0f766e" opacity=".75"/>` +
+    `<line x1="${bx0 - 20}" y1="${by0 + 128}" x2="${bx0 + bw + 20}" y2="${by0 + 128}" stroke="#ef4444" stroke-width="2" stroke-dasharray="6 3"/>` + T(bx0 + bw + 24, by0 + 125, 'garis batas MAX', { size: 10, fill: '#ef4444', w: 700 }) + T(bx0 + bw + 24, by0 + 138, 'jangan terendam melewati garis', { size: 9, fill: '#ef4444' }) +
+    T(bx0 + bw / 2, by0 + 220, 'area probe', { size: 10, anchor: 'middle', fill: '#a7f3d0' }) + T(bx0 + bw / 2, by0 + 233, '(masuk tanah)', { size: 9, anchor: 'middle', fill: '#a7f3d0' }) +
+    `<rect x="${bx0 + 12}" y="${by0 + 62}" width="26" height="18" fill="#111827"/>` + T(bx0 + 25, by0 + 75, 'IC', { size: 8, anchor: 'middle', fill: '#9ca3af' }) +
+    `<rect x="${bx0 + 46}" y="${by0 + 62}" width="22" height="18" fill="#111827"/>` + T(bx0 + 57, by0 + 75, '3.3V', { size: 7, anchor: 'middle', fill: '#9ca3af' }) +
+    `<rect x="${bx0 + 10}" y="${by0 + 10}" width="${bw - 20}" height="28" rx="3" fill="#f8fafc" stroke="#334155"/>`;
+  [['GND', '#111827'], ['VCC', '#dc2626'], ['AOUT', '#eab308']].forEach(([n, col], i) => {
+    const px = bx0 + 16 + i * 24; b += `<circle cx="${px}" cy="${by0 + 24}" r="5" fill="${col}" stroke="#111827"/>` + T(px, by0 + 54, n, { size: 7.5, anchor: 'middle', fill: '#a7f3d0', w: 700 });
+    b += `<line x1="${px}" y1="${by0 + 10}" x2="${px}" y2="${by0 - 22}" stroke="${col}" stroke-width="3"/>`;
+  });
+  b += T(bx0 + bw / 2, by0 - 30, 'konektor 3 pin (JST PH2.0)', { size: 9.5, anchor: 'middle', fill: '#475569' });
+  b += T(30, by0 + 300, 'Urutan pin PCB: GND – VCC – AOUT', { size: 10.5, w: 700 }) + T(30, by0 + 315, '(cek silkscreen; varian lain bisa berbeda)', { size: 9.5, fill: '#64748b' });
+  b += `<rect x="30" y="${by0 + 330}" width="330" height="86" rx="8" fill="#f1f5f9" stroke="#cbd5e1"/>` + T(42, by0 + 349, 'Warna kabel (standar yang disarankan)', { size: 11, w: 700 }) +
+    `<line x1="44" y1="${by0 + 364}" x2="74" y2="${by0 + 364}" stroke="#dc2626" stroke-width="4"/>` + T(84, by0 + 368, 'Merah  = VCC  → +3V3 ESP32 (BUKAN 5V)', { size: 10.5 }) +
+    `<line x1="44" y1="${by0 + 380}" x2="74" y2="${by0 + 380}" stroke="#111827" stroke-width="4"/>` + T(84, by0 + 384, 'Hitam  = GND  → GND ESP32', { size: 10.5 }) +
+    `<line x1="44" y1="${by0 + 396}" x2="74" y2="${by0 + 396}" stroke="#eab308" stroke-width="4"/>` + T(84, by0 + 400, 'Kuning = AOUT → GPIO ADC1 (34/35/32/33)', { size: 10.5 });
+
+  // C: penampang tanah
+  const cx0 = 400, cy0 = by0 + 20, cw = 340;
+  b += `<rect x="${cx0}" y="${cy0 + 110}" width="${cw}" height="150" rx="6" fill="#92400e" opacity=".85"/><rect x="${cx0}" y="${cy0 + 110}" width="${cw}" height="14" fill="#65a30d"/>` + T(cx0 + cw / 2, cy0 + 254, 'tanah / media tanam', { size: 10.5, anchor: 'middle', fill: '#fef3c7', w: 700 });
+  [[cx0 + 80, 'Sensor 1'], [cx0 + 240, 'Sensor 2']].forEach(([px, n], i) => {
+    b += `<rect x="${px - 14}" y="${cy0 + 42}" width="28" height="${110 + 80 - 42 - 36}" rx="3" fill="#065f46" stroke="#022c22" stroke-width="1.5"/>` +
+      `<rect x="${px - 8}" y="${cy0 + 102}" width="16" height="${190 - 102 + 20}" fill="#0f766e" opacity=".8"/>` +
+      `<rect x="${px - 16}" y="${cy0 + 36}" width="32" height="14" rx="3" fill="#f8fafc" stroke="#334155"/>` + `<rect x="${px - 15}" y="${cy0 + 30}" width="30" height="12" rx="3" fill="#1f2937"/>` + T(px, cy0 + 39, 'heat-shrink', { size: 7, anchor: 'middle', fill: '#fbbf24' }) +
+      `<path d="M${px},${cy0 + 30} C${px},${cy0 + 6} ${px + 26},${cy0 + 6} ${px + 40},${cy0 - 6}" fill="none" stroke="#111827" stroke-width="3"/>` + T(px, cy0 + 236, n, { size: 10.5, anchor: 'middle', fill: '#fff', w: 700 });
+  });
+  b += T(cx0 + 160, cy0 - 12, '→ kabel ke junction box / ESP32', { size: 10, anchor: 'middle', fill: '#475569' }) +
+    T(cx0 + 160, cy0 + 6, 'drip loop:', { size: 9, anchor: 'middle', fill: '#92400e', w: 700 }) + T(cx0 + 160, cy0 + 18, 'kabel melengkung', { size: 9, anchor: 'middle', fill: '#92400e' }) + T(cx0 + 160, cy0 + 30, 'ke bawah dulu', { size: 9, anchor: 'middle', fill: '#92400e' });
+  b += `<line x1="${cx0 - 14}" y1="${cy0 + 124}" x2="${cx0 - 14}" y2="${cy0 + 190}" stroke="#2563eb" stroke-width="1.6"/><polygon points="${cx0 - 14},${cy0 + 124} ${cx0 - 18},${cy0 + 132} ${cx0 - 10},${cy0 + 132}" fill="#2563eb"/><polygon points="${cx0 - 14},${cy0 + 190} ${cx0 - 18},${cy0 + 182} ${cx0 - 10},${cy0 + 182}" fill="#2563eb"/>` +
+    T(cx0 - 20, cy0 + 160, '5–10 cm', { size: 10, anchor: 'end', fill: '#2563eb', w: 700 }) + T(cx0 - 20, cy0 + 173, '(zona akar)', { size: 9, anchor: 'end', fill: '#2563eb' });
+  b += `<rect x="${cx0}" y="${cy0 + 276}" width="${cw}" height="108" rx="8" fill="#f1f5f9" stroke="#cbd5e1"/>` + T(cx0 + 12, cy0 + 295, 'Penempatan per zona', { size: 11, w: 700 }) +
+    T(cx0 + 12, cy0 + 313, '• Sensor 1 & 2 di titik berbeda (±1/3 & 2/3 lebar bedeng).', { size: 10 }) +
+    T(cx0 + 12, cy0 + 329, '• Jauhi titik tetes/sprinkler langsung (bacaan terlalu basah).', { size: 10 }) +
+    T(cx0 + 12, cy0 + 345, '• Tekan tanah rapat di sekeliling probe, tanpa celah udara.', { size: 10 }) +
+    T(cx0 + 12, cy0 + 361, '• Jangan membengkokkan/menggores PCB; masuk tegak lurus.', { size: 10 });
+
+  // D: kabel & proteksi
+  const dx0 = 790, dy0 = by0 - 6;
+  const rows = [['Kabel', '3-core 0,22–0,5 mm² (mis. kabel sensor / CCTV)'], ['Jarak ≤ 5 m', 'kabel biasa, twisted'], ['Jarak 5–15 m', 'kabel shielded; shield ke GND di sisi ESP32 SAJA'], ['Sambungan', 'solder + heat-shrink berperekat, atau terminal di junction box IP65'],
+    ['Segel PCB', 'lem epoxy / hot-glue / cat kedap di konektor & tepi atas PCB'], ['Pisahkan', 'jangan 1 jalur dengan kabel solenoid 12/24V (induksi → bacaan loncat)'], ['Kapasitor', '100 nF AOUT–GND di sisi ESP32 (mengurangi noise ADC)']];
+  b += `<rect x="${dx0 - 10}" y="${dy0 + 4}" width="250" height="${rows.length * 44 + 12}" rx="8" fill="#fffbeb" stroke="#f59e0b"/>`;
+  rows.forEach((r, i) => { const yy = dy0 + 28 + i * 44; b += T(dx0, yy, r[0], { size: 11, w: 700, fill: '#92400e' }); const words = r[1].split(' '); let l1 = '', l2 = ''; words.forEach(w => { if ((l1 + ' ' + w).length < 38 && !l2) l1 += (l1 ? ' ' : '') + w; else l2 += (l2 ? ' ' : '') + w; }); b += T(dx0, yy + 14, l1, { size: 9.5, fill: '#78350f' }); if (l2) b += T(dx0, yy + 26, l2, { size: 9.5, fill: '#78350f' }); });
+
+  // peringatan utama
+  const yN = by0 + 440;
+  const notes = ['Catu sensor dari +3V3 ESP32 (bukan 5V): pada 5V keluaran AOUT bisa melebihi 3,3V dan merusak pin ADC.',
+    'Hanya pin ADC1 (GPIO32–39) — ADC2 tidak dapat dibaca saat WiFi aktif. GPIO34/35 input-only (aman untuk ADC).',
+    'Arus 4 sensor ± 20 mA dari pin 3V3 ESP32: aman. Untuk lebih dari 6 sensor gunakan regulator 3,3V terpisah (GND disatukan).',
+    'Kalibrasi: set SOIL_CAL_MODE 1 di config.h, baca raw di udara (→ SOIL_RAW_DRY) dan tercelup sampai garis MAX (→ SOIL_RAW_WET).'];
+  b += `<rect x="30" y="${yN}" width="${W - 60}" height="${notes.length * 18 + 34}" rx="8" fill="#fef2f2" stroke="#ef4444"/>` + T(46, yN + 22, 'Peringatan', { size: 12, w: 700, fill: '#991b1b' });
+  notes.forEach((n, i) => b += T(46, yN + 42 + i * 18, '• ' + n, { size: 10.8, fill: '#7f1d1d' }));
+  return wrap(W, yN + notes.length * 18 + 54, b);
+}
+const SOIL = soilDiagram();
+
+const files = { gwt_wiring: GWT, gwt_pinout: PIN_GWT, irrigation_lt1_wiring: LT1, irrigation_lt1_pinout: PIN_LT1, irrigation_roof_wiring: ROOF, irrigation_roof_pinout: PIN_ROOF, soil_sensor_wiring: SOIL };
 Object.entries(files).forEach(([n, svg]) => fs.writeFileSync(`${OUT}/${n}.svg`, svg));
 const sections = [['NISMARA GWT', 'gwt'], ['Garden Lt.1 (2 zone)', 'irrigation_lt1'], ['Garden Roof (1 zone)', 'irrigation_roof']];
 const html = `<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NISMARA — Schematic & Pin Config</title>
@@ -248,8 +358,9 @@ const html = `<!doctype html><html lang="id"><head><meta charset="utf-8"><meta n
 header h1{font-size:18px;margin:0}nav{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}nav a,nav button{padding:7px 14px;border-radius:999px;background:#1e293b;color:#e2e8f0;text-decoration:none;font-size:12px;font-weight:700;border:0;cursor:pointer}
 section{max-width:1100px;margin:24px auto;padding:0 16px}h2{font-size:15px;margin:0 0 8px}.card{background:#fff;border-radius:12px;box-shadow:0 8px 24px -16px rgba(0,0,0,.4);padding:10px;margin-bottom:18px;overflow-x:auto}
 .card svg{width:100%;height:auto;display:block}@media print{header nav{display:none}body{background:#fff}.card{box-shadow:none;break-inside:avoid}}</style></head><body>
-<header><h1>⚡ NISMARA — Schematic & Pin Config</h1><nav>${sections.map(s => `<a href="#${s[1]}">${s[0]}</a>`).join('')}<button onclick="window.print()">🖨 Print / PDF</button></nav></header>
+<header><h1>⚡ NISMARA — Schematic & Pin Config</h1><nav>${sections.map(s => `<a href="#${s[1]}">${s[0]}</a>`).join('')}<a href="#soil">Soil sensor</a><button onclick="window.print()">🖨 Print / PDF</button></nav></header>
 ${sections.map(s => `<section id="${s[1]}"><h2>${s[0]} — wiring</h2><div class="card">${files[s[1] + '_wiring']}</div><h2>${s[0]} — pin config</h2><div class="card">${files[s[1] + '_pinout']}</div></section>`).join('')}
+<section id="soil"><h2>Soil sensor — detail wiring</h2><div class="card">${files.soil_sensor_wiring}</div></section>
 </body></html>`;
 fs.writeFileSync(`${OUT}/schematics.html`, html);
 console.log('OK', Object.keys(files).length, 'svg + schematics.html');

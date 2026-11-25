@@ -56,6 +56,10 @@
 #define SOIL_RAW_DRY        3200
 #define SOIL_RAW_WET        1400
 
+/* MODE KALIBRASI: set 1 -> sketch hanya mencetak nilai mentah semua soil sensor tiap 0,5 dtk di Serial Monitor
+ * (115200). Valve TIDAK pernah dinyalakan & WiFi tidak dipakai. Kembalikan ke 0 setelah kalibrasi. */
+#define SOIL_CAL_MODE       0
+
 /* ---------------- DEFAULT THRESHOLD (bisa diubah dari dashboard) ---------------- */
 #define DEF_START_PCT       30.0f               // buka valve bila soil < nilai ini
 #define DEF_STOP_PCT        55.0f               // tutup valve bila soil >= nilai ini

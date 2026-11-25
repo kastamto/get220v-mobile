@@ -383,6 +383,20 @@ void setup() {
 
 void loop() {
   esp_task_wdt_reset();
+#if SOIL_CAL_MODE
+  static uint32_t lastCal = 0;
+  if (millis() - lastCal >= 500) {
+    lastCal = millis();
+    for (int i = 0; i < NZONES; i++) for (int j = 0; j < 2; j++) {
+      int raw = readRaw(SOIL_PINS[i][j]);
+      Serial.printf("Z%d-S%d GPIO%d raw=%4d  -> %3.0f%%  %s\n", i + 1, j + 1, SOIL_PINS[i][j], raw,
+                    constrain((SOIL_RAW_DRY - raw) * 100.0f / (SOIL_RAW_DRY - SOIL_RAW_WET), 0.0f, 100.0f),
+                    (raw > 300 && raw < 4000) ? "" : "<< di luar range: kabel lepas / short?");
+    }
+    Serial.println("----");
+  }
+  return;                                   // mode kalibrasi: tidak menjalankan kontrol/jaringan
+#endif
   netLoop(); buttonLoop(); ledLoop();
   uint32_t now = millis();
   if (now - lastSample >= SAMPLE_MS) {

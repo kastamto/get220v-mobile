@@ -40,7 +40,7 @@ class String : public std::string { public:
   unsigned length()const{return size();}
   void toLowerCase(){for(auto&c:*this)c=tolower(c);} void remove(unsigned i){erase(i);}
 };
-struct SerialT{void begin(int){} void printf(const char*f,...){va_list a;va_start(a,f);vprintf(f,a);va_end(a);}} extern Serial;
+struct SerialT{void begin(int){} void println(const char*s){puts(s);} void printf(const char*f,...){va_list a;va_start(a,f);vprintf(f,a);va_end(a);}} extern Serial;
 struct EspT{uint32_t getFreeHeap();uint64_t getEfuseMac();} extern ESP;
 using std::min; using std::max;
 #include <ctype.h>

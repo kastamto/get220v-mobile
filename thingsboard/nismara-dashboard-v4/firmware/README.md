@@ -10,7 +10,8 @@ firmware/
 ├── nismara_irrigation/           ← device 2 DAN 3: Garden Lt.1 & Garden Roof
 │   ├── nismara_irrigation.ino    (sketch yang sama untuk kedua device)
 │   └── config.h                  (pilih profil: PROFILE_GARDEN_LT1 atau PROFILE_GARDEN_ROOF)
-├── schematics/                   diagram wiring + pin config
+├── SOIL_SENSOR.md                detail wiring, pemasangan & kalibrasi soil sensor
+├── schematics/                   diagram wiring + pin config (+ soil_sensor_wiring.svg)
 ├── tests/                        uji logika di komputer (RPC, relay) — tanpa hardware
 ├── PINOUT.md
 └── README.md
