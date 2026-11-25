@@ -4,7 +4,7 @@
 
 ```
 firmware/
-├── nismara_gwt/                  ← device 1: GWT (2 tank + rain tank + flow 1")
+├── nismara_gwt/                  ← device 1: GWT (2 tank + rain tank + flow 1" + LCD 20x4)
 │   ├── nismara_gwt.ino           (nama .ino HARUS sama dengan nama foldernya)
 │   └── config.h                  (pin, WiFi, token, kalibrasi)
 ├── nismara_irrigation/           ← device 2 DAN 3: Garden Lt.1 & Garden Roof

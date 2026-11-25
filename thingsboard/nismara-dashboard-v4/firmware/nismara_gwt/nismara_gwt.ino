@@ -1,5 +1,5 @@
 /*
- * NISMARA GWT  -  ESP32 + LCD 16x2 I2C + 3x HC-SR04 + flow sensor 1 inch
+ * NISMARA GWT  -  ESP32 + LCD 20x4 I2C + 3x HC-SR04 + flow sensor 1 inch
  * ---------------------------------------------------------------------
  *  T1, T2 : tangki GWT        RW : tangki rain water        FLOW : flow 1" rain water
  *  Semua pin/kalibrasi/WiFi/token -> config.h
@@ -27,7 +27,7 @@ const TankCfg RW = {PIN_RW_TRIG, PIN_RW_ECHO, RW_EMPTY_CM, RW_FULL_CM, RW_CAP_L}
 
 WiFiClient   wifi;
 PubSubClient mqtt(wifi);
-LiquidCrystal_I2C lcd(LCD_ADDR, 16, 2);
+LiquidCrystal_I2C lcd(LCD_ADDR, LCD_COLS, LCD_ROWS);
 Preferences  prefs;
 
 volatile uint32_t flowPulses = 0;
@@ -38,7 +38,6 @@ Reading r1, r2, rw;
 float flowLpm = 0, totalL = 0, savedTotalL = 0;
 uint32_t pulsesWin = 0;
 uint32_t lastFlowMs = 0, lastSampleMs = 0, lastPubMs = 0, lastSaveMs = 0, lastWifiTry = 0, lastMqttTry = 0, lastLedMs = 0;
-uint8_t lcdPage = 0;
 
 /* ---------------- watchdog ---------------- */
 void wdtInit() {
@@ -126,17 +125,42 @@ void publishTelemetry() {
   pulsesWin = 0;
 }
 
-/* ---------------- LCD ---------------- */
-void lcdLine(uint8_t row, const String& s) { String t = s; while (t.length() < 16) t += ' '; lcd.setCursor(0, row); lcd.print(t.substring(0, 16)); }
-String pct(const Reading& r) { return r.ok ? String(r.level, 0) + "%" : "ERR"; }
+/* ---------------- LCD 20x4 ----------------
+ *  L0: T1:62% T2:58% B:OK            (B = balance; ERR bila sensor ultrasonik tidak terbaca)
+ *  L1: G:2.92kL R:780L               (volume GWT total & tangki hujan)
+ *  L2: Rain:78% 11.0L/m              (level & flow tangki hujan)
+ *  L3: WiFi-71 TB:OK Up 16h          <-> tiap 4 dtk bergantian: Rain total: 2.38 m3
+ */
+void lcdLine(uint8_t row, const char* s) {
+  char b[LCD_COLS + 1]; snprintf(b, sizeof(b), "%-*s", LCD_COLS, s);          // pad spasi & potong di LCD_COLS
+  lcd.setCursor(0, row); lcd.print(b);
+}
+void pctStr(const Reading& r, char* o, size_t n) { if (r.ok) snprintf(o, n, "%.0f%%", r.level); else snprintf(o, n, "ERR"); }
+void volStr(float l, char* o, size_t n) { if (l >= 1000) snprintf(o, n, "%.2fkL", l / 1000.0f); else snprintf(o, n, "%.0fL", l); }
+void upStr(uint32_t s, char* o, size_t n) { if (s >= 86400UL) snprintf(o, n, "%lud", (unsigned long)(s / 86400UL)); else if (s >= 3600UL) snprintf(o, n, "%luh", (unsigned long)(s / 3600UL)); else snprintf(o, n, "%lum", (unsigned long)(s / 60UL)); }
+
 void drawLcd() {
-  switch (lcdPage % 3) {
-    case 0: lcdLine(0, "T1:" + pct(r1) + " T2:" + pct(r2));
-            lcdLine(1, String("Rain:") + pct(rw) + (flowLpm > 0.5 ? " FLOW" : " idle")); break;
-    case 1: lcdLine(0, "Rain " + String(flowLpm, 1) + " L/min"); lcdLine(1, "Tot " + String(totalL, 0) + " L"); break;
-    case 2: lcdLine(0, WiFi.status() == WL_CONNECTED ? "WiFi " + String(WiFi.RSSI()) + "dBm" : "WiFi: --");
-            lcdLine(1, mqtt.connected() ? "TB: connected" : "TB: offline"); break;
+  char a[8], b[8], c[8], v1[12], v2[12], up[8], l[48];
+  pctStr(r1, a, sizeof a); pctStr(r2, b, sizeof b); pctStr(rw, c, sizeof c);
+  bool bothOk = r1.ok && r2.ok;
+  const char* bal = !bothOk ? "ERR" : (fabsf(r1.level - r2.level) <= BALANCE_WARN_PCT ? "OK" : "!!");
+  snprintf(l, sizeof l, "T1:%s T2:%s B:%s", a, b, bal); lcdLine(0, l);
+
+  float gwtVol = (r1.ok ? r1.vol : 0) + (r2.ok ? r2.vol : 0);
+  if (r1.ok || r2.ok) volStr(gwtVol, v1, sizeof v1); else snprintf(v1, sizeof v1, "--");
+  if (rw.ok) volStr(rw.vol, v2, sizeof v2); else snprintf(v2, sizeof v2, "--");
+  snprintf(l, sizeof l, "G:%s R:%s", v1, v2); lcdLine(1, l);
+
+  snprintf(l, sizeof l, "Rain:%s %.1fL/m", c, flowLpm); lcdLine(2, l);
+
+  if (((millis() / 4000UL) & 1) == 0) {
+    upStr(millis() / 1000UL, up, sizeof up);
+    if (WiFi.status() == WL_CONNECTED) snprintf(l, sizeof l, "WiFi%d TB:%s Up %s", WiFi.RSSI(), mqtt.connected() ? "OK" : "--", up);
+    else snprintf(l, sizeof l, "WiFi:-- TB:-- Up %s", up);
+  } else {
+    if (totalL >= 1000) snprintf(l, sizeof l, "Rain total: %.2f m3", totalL / 1000.0f); else snprintf(l, sizeof l, "Rain total: %.0f L", totalL);
   }
+  lcdLine(3, l);
 }
 
 /* status LED: cepat = WiFi putus, kedip lambat = TB putus, nyala sebentar = OK */
@@ -151,7 +175,7 @@ void setup() {
   Serial.begin(115200);
   pinMode(PIN_STATUS_LED, OUTPUT);
   Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);
-  lcd.init(); lcd.backlight(); lcdLine(0, "NISMARA GWT"); lcdLine(1, FW_VERSION);
+  lcd.init(); lcd.backlight(); lcdLine(0, "NISMARA GWT"); lcdLine(1, FW_VERSION); lcdLine(2, "LCD 20x4 I2C"); lcdLine(3, "booting...");
 
   const TankCfg* ts[] = {&T1, &T2, &RW};
   for (auto t : ts) { pinMode(t->trig, OUTPUT); pinMode(t->echo, INPUT); }
@@ -174,7 +198,7 @@ void loop() {
   if (now - lastSampleMs >= SAMPLE_MS) {
     lastSampleMs = now;
     r1 = readTank(T1); r2 = readTank(T2); rw = readTank(RW);
-    lcdPage++; drawLcd();
+    drawLcd();
     Serial.printf("T1 %.1f/%.1f T2 %.1f/%.1f RW %.1f/%.1f flow %.2f tot %.1f\n", r1.dist, r1.level, r2.dist, r2.level, rw.dist, rw.level, flowLpm, totalL);
   }
   if (now - lastPubMs >= PUBLISH_MS) { lastPubMs = now; publishTelemetry(); }

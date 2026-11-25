@@ -10,8 +10,8 @@ Semua pin bisa diubah di `config.h` masing-masing sketch. Board: ESP32 DevKit (3
 
 | Fungsi | GPIO | Arah | Catatan |
 |---|---|---|---|
-| LCD 16x2 I2C SDA | 21 | I2C | alamat 0x27 (atau 0x3F) |
-| LCD 16x2 I2C SCL | 22 | I2C | |
+| LCD 20x4 I2C SDA | 21 | I2C | alamat 0x27 (atau 0x3F); VCC 5V, ± 150 mA (backlight) |
+| LCD 20x4 I2C SCL | 22 | I2C | |
 | GWT T1 HC-SR04 TRIG | 26 | out | |
 | GWT T1 HC-SR04 ECHO | 27 | in | **pembagi tegangan** |
 | GWT T2 HC-SR04 TRIG | 32 | out | |

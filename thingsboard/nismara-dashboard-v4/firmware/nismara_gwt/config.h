@@ -14,8 +14,8 @@
 
 /* ---------------- PIN MAP (ESP32 DevKit 30/38 pin) ----------------
  *   Fungsi            GPIO   Catatan
- *   LCD SDA           21     I2C
- *   LCD SCL           22     I2C
+ *   LCD 20x4 SDA      21     I2C (PCF8574 backpack, VCC 5V)
+ *   LCD 20x4 SCL      22     I2C
  *   T1  TRIG          26     output
  *   T1  ECHO          27     input  -> WAJIB pembagi tegangan 5V->3.3V
  *   T2  TRIG          32     output
@@ -28,7 +28,9 @@
  * ------------------------------------------------------------------ */
 #define PIN_I2C_SDA     21
 #define PIN_I2C_SCL     22
-#define LCD_ADDR        0x27                       // 0x3F untuk beberapa modul
+#define LCD_ADDR        0x27                       // 0x3F untuk beberapa modul (cek dengan I2C scanner)
+#define LCD_COLS        20                         // LCD I2C 20x4
+#define LCD_ROWS        4
 #define PIN_T1_TRIG     26
 #define PIN_T1_ECHO     27
 #define PIN_T2_TRIG     32

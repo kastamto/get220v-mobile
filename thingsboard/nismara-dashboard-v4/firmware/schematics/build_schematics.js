@@ -133,9 +133,9 @@ const soil = (name, gpio, fn) => ({ title: name, sub: 'Capacitive soil moisture 
 const btn = (name, gpio, fn) => ({ title: name, sub: 'Push button NO', pins: [{ n: '1', k: 'sig', net: 'btn', esp: gpio, fn }, { n: '2', k: 'gnd' }] });
 
 const GWT = wiring({
-  title: 'NISMARA GWT — Wiring', subtitle: 'ESP32 · LCD 16x2 I2C · 3× HC-SR04 (T1, T2, Rain tank) · Flow sensor 1" rain water',
+  title: 'NISMARA GWT — Wiring', subtitle: 'ESP32 · LCD 20x4 I2C · 3× HC-SR04 (T1, T2, Rain tank) · Flow sensor 1" rain water',
   left: [
-    { title: 'LCD 16x2 I2C', sub: 'PCF8574 · alamat 0x27 / 0x3F', pins: [{ n: 'GND', k: 'gnd' }, { n: 'VCC', k: 'p5' }, { n: 'SDA', k: 'sig', net: 'sda', esp: 'GPIO21', fn: 'SDA' }, { n: 'SCL', k: 'sig', net: 'scl', esp: 'GPIO22', fn: 'SCL' }] },
+    { title: 'LCD 20x4 I2C', sub: 'PCF8574 · 20 kolom × 4 baris · 0x27 / 0x3F', pins: [{ n: 'GND', k: 'gnd' }, { n: 'VCC', k: 'p5' }, { n: 'SDA', k: 'sig', net: 'sda', esp: 'GPIO21', fn: 'SDA' }, { n: 'SCL', k: 'sig', net: 'scl', esp: 'GPIO22', fn: 'SCL' }] },
     sr04('GWT Tank 1', 'GPIO26', 'GPIO27'),
     sr04('GWT Tank 2', 'GPIO32', 'GPIO33')
   ],
@@ -145,12 +145,13 @@ const GWT = wiring({
   ],
   power: (y, W) => railPanel(y, W, { title: 'Distribusi daya (satu catu 5V, GND disatukan)', rails: [{ name: '+5V', color: COL.pwr }, { name: 'GND', color: COL.gnd }],
     boxes: [{ name: 'Adaptor 5V 2A', sub: 'sumber utama', taps: ['+5V', 'GND'] }, { name: 'ESP32 VIN', sub: 'regulator onboard → 3V3', taps: ['+5V', 'GND'] },
-      { name: 'HC-SR04 ×3', sub: 'VCC 5V', taps: ['+5V', 'GND'] }, { name: 'LCD I2C', sub: 'VCC 5V', taps: ['+5V', 'GND'] }, { name: 'Flow sensor', sub: 'V+ 5V (cek datasheet)', taps: ['+5V', 'GND'] }] }),
+      { name: 'HC-SR04 ×3', sub: 'VCC 5V', taps: ['+5V', 'GND'] }, { name: 'LCD 20x4 I2C', sub: 'VCC 5V · ±150 mA', taps: ['+5V', 'GND'] }, { name: 'Flow sensor', sub: 'V+ 5V (cek datasheet)', taps: ['+5V', 'GND'] }] }),
   notes: [
     'ECHO HC-SR04 mengeluarkan 5V → WAJIB pembagi tegangan 1 kΩ (seri) + 2 kΩ (ke GND) sebelum masuk GPIO ESP32 (hanya toleran 3.3V).',
     'Jarak sensor ke permukaan air minimal 20 cm (blind zone HC-SR04). dist_cm = -1 di telemetry = sensor tidak terbaca / wiring salah.',
     'Output flow sensor: jika open-collector, pull-up internal GPIO4 cukup. Jika outputnya 5V push-pull, tambahkan pembagi 1k/2k seperti ECHO.',
-    'LED status memakai LED onboard GPIO2 (cepat = WiFi putus, sedang = ThingsBoard putus, lambat = normal).'
+    'LED status memakai LED onboard GPIO2 (cepat = WiFi putus, sedang = ThingsBoard putus, lambat = normal).',
+    'LCD 20x4 I2C wajib VCC 5V (backlight ± 100–150 mA); SDA/SCL 3,3V dari ESP32 umumnya aman. Alamat 0x27 / 0x3F — cek dengan I2C scanner; atur kontras dengan trimmer di backpack.'
   ]
 });
 
@@ -228,7 +229,7 @@ function pinout(title, subtitle, used, extraNotes) {
 const U = (t, c) => ({ t, c });
 const pinNotes = ['Urutan pin antar vendor board bisa sedikit berbeda — cocokkan dengan label yang tercetak di PCB.', 'Pin ⚠ strapping (GPIO2, 12, 15) mempengaruhi boot; GPIO2 dipakai LED onboard (aman).', 'GPIO34–39 hanya input (tanpa pull-up internal) — dipakai untuk ADC soil sensor.'];
 const PIN_GWT = pinout('Pin config — NISMARA GWT', 'config.h: nismara_gwt', {
-  '21': U('LCD SDA', COL.sda), '22': U('LCD SCL', COL.scl), '26': U('T1 TRIG', COL.trig), '27': U('T1 ECHO (÷)', COL.echo), '32': U('T2 TRIG', COL.trig), '33': U('T2 ECHO (÷)', COL.echo),
+  '21': U('LCD 20x4 SDA', COL.sda), '22': U('LCD 20x4 SCL', COL.scl), '26': U('T1 TRIG', COL.trig), '27': U('T1 ECHO (÷)', COL.echo), '32': U('T2 TRIG', COL.trig), '33': U('T2 ECHO (÷)', COL.echo),
   '18': U('RAIN TRIG', COL.trig), '19': U('RAIN ECHO (÷)', COL.echo), '4': U('FLOW sensor', COL.flow), '2': U('LED status', COL.led), VIN: U('+5V masuk', COL.pwr), GND: U('GND', COL.gnd), '3V3': U('3V3 (tidak dipakai)', '#94a3b8')
 }, ['(÷) = lewat pembagi tegangan 1 kΩ / 2 kΩ.', ...pinNotes]);
 const PIN_LT1 = pinout('Pin config — NISMARA Garden Lt.1', 'config.h: PROFILE_GARDEN_LT1', {
