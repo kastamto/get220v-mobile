@@ -308,7 +308,7 @@ function soilDiagram() {
   b += T(bx0 + bw / 2, by0 - 30, 'konektor 3 pin (JST PH2.0)', { size: 9.5, anchor: 'middle', fill: '#475569' });
   b += T(30, by0 + 300, 'Urutan pin PCB: GND – VCC – AOUT', { size: 10.5, w: 700 }) + T(30, by0 + 315, '(cek silkscreen; varian lain bisa berbeda)', { size: 9.5, fill: '#64748b' });
   b += `<rect x="30" y="${by0 + 330}" width="330" height="86" rx="8" fill="#f1f5f9" stroke="#cbd5e1"/>` + T(42, by0 + 349, 'Warna kabel (standar yang disarankan)', { size: 11, w: 700 }) +
-    `<line x1="44" y1="${by0 + 364}" x2="74" y2="${by0 + 364}" stroke="#dc2626" stroke-width="4"/>` + T(84, by0 + 368, 'Merah  = VCC  → +3V3 ESP32 (BUKAN 5V)', { size: 10.5 }) +
+    `<line x1="44" y1="${by0 + 364}" x2="74" y2="${by0 + 364}" stroke="#dc2626" stroke-width="4"/>` + T(84, by0 + 368, 'Merah  = VCC  → +3V3 ESP32 (spek 3,3–5,5V)', { size: 10.5 }) +
     `<line x1="44" y1="${by0 + 380}" x2="74" y2="${by0 + 380}" stroke="#111827" stroke-width="4"/>` + T(84, by0 + 384, 'Hitam  = GND  → GND ESP32', { size: 10.5 }) +
     `<line x1="44" y1="${by0 + 396}" x2="74" y2="${by0 + 396}" stroke="#eab308" stroke-width="4"/>` + T(84, by0 + 400, 'Kuning = AOUT → GPIO ADC1 (34/35/32/33)', { size: 10.5 });
 
@@ -340,7 +340,7 @@ function soilDiagram() {
 
   // peringatan utama
   const yN = by0 + 440;
-  const notes = ['Catu sensor dari +3V3 ESP32 (bukan 5V): pada 5V keluaran AOUT bisa melebihi 3,3V dan merusak pin ADC.',
+  const notes = ['Catu 3,3 V dari pin 3V3 ESP32: aman & sesuai spek (3,3–5,5 V; AOUT 0–3,0 V). Sensor tiruan bisa berbeda — ukur AOUT dengan multimeter sebelum disambung; harus ≤ 3,3 V.',
     'Hanya pin ADC1 (GPIO32–39) — ADC2 tidak dapat dibaca saat WiFi aktif. GPIO34/35 input-only (aman untuk ADC).',
     'Arus 4 sensor ± 20 mA dari pin 3V3 ESP32: aman. Untuk lebih dari 6 sensor gunakan regulator 3,3V terpisah (GND disatukan).',
     'Kalibrasi: set SOIL_CAL_MODE 1 di config.h, baca raw di udara (→ SOIL_RAW_DRY) dan tercelup sampai garis MAX (→ SOIL_RAW_WET).'];

@@ -7,7 +7,7 @@ Sensor: **Capacitive Soil Moisture Sensor v1.2** (3 pin). Jangan pakai sensor re
 
 | Pin sensor | Warna kabel | Ke ESP32 | Catatan |
 |---|---|---|---|
-| VCC | merah | **3V3** | 3,3 V. **Bukan 5V** (keluaran AOUT bisa > 3,3 V → merusak ADC) |
+| VCC | merah | **3V3** | 3,3 V (spek sensor 3,3–5,5 V, keluaran AOUT 0–3,0 V). 3,3 V dipilih karena aman untuk ADC ESP32. Jika memakai 5V atau sensor tiruan: **ukur AOUT dengan multimeter dulu** (harus ≤ 3,3 V), dan kalibrasi ulang — nilai `raw` berubah mengikuti tegangan catu |
 | GND | hitam | GND | semua GND disatukan |
 | AOUT | kuning | GPIO ADC1 | + kapasitor 100 nF AOUT–GND di sisi ESP32 |
 
