@@ -30,7 +30,7 @@
  *     zN_remain_s zN_cycles zN_runtime_s zN_fault(0 ok|1 sensor|2 max-run)
  *     rssi uptime_s heap fw_version in_window time_ok win
  *
- *  Library: PubSubClient, ArduinoJson (v7)
+ *  Library: PubSubClient, ArduinoJson (v7), LiquidCrystal_I2C
  */
 #include <WiFi.h>
 #include <PubSubClient.h>
@@ -38,6 +38,8 @@
 #include <Preferences.h>
 #include <time.h>
 #include <esp_task_wdt.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
 #include "config.h"
 
 const uint8_t SOIL_PINS[NZONES][SOILS_PER_ZONE] = SOIL_PINS_INIT;
@@ -62,8 +64,9 @@ Zone Z[NZONES];
 WiFiClient   wifi;
 PubSubClient mqtt(wifi);
 Preferences  prefs;
+LiquidCrystal_I2C lcd(LCD_ADDR, LCD_COLS, LCD_ROWS);
 
-uint32_t lastSample = 0, lastPub = 0, lastWifi = 0, lastMqtt = 0, lastLed = 0;
+uint32_t lastSample = 0, lastPub = 0, lastWifi = 0, lastMqtt = 0, lastLed = 0, lastLcd = 0;
 bool publishNow = false, ntpStarted = false;
 
 /* ---------------- watchdog ---------------- */
@@ -357,6 +360,53 @@ void netLoop() {
   mqtt.loop();
 }
 
+/* ---------------- LCD 16x2 I2C ----------------
+ *  Halaman A: tiap baris = 1 zona   "Z1:36% OFF AUTO" | "Z1:36% ON 04:32" | "Z1:ERR OFF AUTO" | "Z1:36% MAXRUN"
+ *             (zona < jumlah baris: baris sisa = pembacaan sensor / ambang)
+ *  Halaman B: "WiFi-71 TB:OK" / "Win*05-09,16-19"  (* dalam jendela, - di luar, ? NTP belum sync)  */
+void lcdLine(uint8_t row, const char* s) {
+  char b[LCD_COLS + 1]; snprintf(b, sizeof(b), "%-*s", LCD_COLS, s);
+  lcd.setCursor(0, row); lcd.print(b);
+}
+void zoneLine(int i, char* out, size_t n) {
+  Zone& z = Z[i]; char p[8];
+  if (z.avgOk) snprintf(p, sizeof p, "%.0f%%", z.avg); else snprintf(p, sizeof p, "ERR");
+  if (z.valve) {
+    uint32_t sec = z.manualRun ? (uint32_t)max(0, (int)((int32_t)(z.manualUntil - millis()) / 1000)) : (millis() - z.onSince) / 1000;
+    snprintf(out, n, "Z%d:%s ON %02lu:%02lu", i + 1, p, (unsigned long)((sec / 60) % 100), (unsigned long)(sec % 60));
+  } else if (z.fault == 2) snprintf(out, n, "Z%d:%s MAXRUN", i + 1, p);
+  else snprintf(out, n, "Z%d:%s OFF %s", i + 1, p, z.autoMode ? "AUTO" : "MAN");
+}
+void drawLcd() {
+  char l[48];
+  if (millis() % (LCD_PAGE_A_MS + LCD_PAGE_B_MS) < LCD_PAGE_A_MS) {
+    for (int r = 0; r < LCD_ROWS; r++) {
+      if (r < NZONES) zoneLine(r, l, sizeof l);
+      else {
+#if SOILS_PER_ZONE > 1
+        char a[8], b[8];
+        if (Z[0].soilOk[0]) snprintf(a, sizeof a, "%.0f%%", Z[0].soil[0]); else snprintf(a, sizeof a, "ERR");
+        if (Z[0].soilOk[1]) snprintf(b, sizeof b, "%.0f%%", Z[0].soil[1]); else snprintf(b, sizeof b, "ERR");
+        snprintf(l, sizeof l, "S1:%s S2:%s", a, b);
+#else
+        snprintf(l, sizeof l, "Start<%.0f Stop>%.0f", Z[0].startPct, Z[0].stopPct);
+#endif
+      }
+      lcdLine(r, l);
+    }
+  } else {
+    if (WiFi.status() == WL_CONNECTED) snprintf(l, sizeof l, "WiFi%d TB:%s", WiFi.RSSI(), mqtt.connected() ? "OK" : "--");
+    else snprintf(l, sizeof l, "WiFi:-- TB:--");
+    lcdLine(0, l);
+#if USE_TIME_WINDOW
+    snprintf(l, sizeof l, "Win%c%s", timeOk() ? (inWindow() ? '*' : '-') : '?', WINDOW_TEXT);
+#else
+    snprintf(l, sizeof l, "Siram: 24 jam");
+#endif
+    if (LCD_ROWS > 1) lcdLine(1, l);
+  }
+}
+
 /* LED: cepat = WiFi putus | sedang = TB putus | nyala tetap = ada valve terbuka | kedip lambat = normal */
 void ledLoop() {
   uint32_t now = millis();
@@ -370,6 +420,8 @@ void setup() {
   Serial.begin(115200);
   analogReadResolution(12); analogSetAttenuation(ADC_11db);
   pinMode(PIN_STATUS_LED, OUTPUT);
+  Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);
+  lcd.init(); lcd.backlight(); lcdLine(0, "NISMARA IRRIG"); if (LCD_ROWS > 1) lcdLine(1, FW_VERSION);
   prefs.begin("irr", false);
   for (int i = 0; i < NZONES; i++) {
     digitalWrite(RELAY_PINS[i], (bool)RELAY_ACTIVE_LOW ? HIGH : LOW);   // set level OFF dulu supaya tidak "klik" saat pinMode
@@ -402,6 +454,7 @@ void loop() {
 #endif
   netLoop(); buttonLoop(); ledLoop();
   uint32_t now = millis();
+  if (now - lastLcd >= 500) { lastLcd = now; drawLcd(); }
   if (now - lastSample >= SAMPLE_MS) {
     lastSample = now;
     readSoil(); controlLoop();

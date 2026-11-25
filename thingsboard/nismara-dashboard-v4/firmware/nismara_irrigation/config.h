@@ -28,6 +28,7 @@
  *  Z1 button GPIO13 (ke GND)        Sensor capacitive : VCC 3.3V, GND, AOUT -> pin ADC
  *  Z2 button GPIO14 (ke GND)        Relay module      : VCC 5V (JD-VCC terpisah bila ada), IN -> GPIO
  *  LED       GPIO2                  Solenoid          : 12/24V via relay COM/NO + dioda flyback 1N4007
+ *  LCD I2C   SDA GPIO21 / SCL GPIO22  (kedua profil, VCC 5V)
  *                                   Button manual     : tekan = buka 5 mnt, tekan lagi = tutup
  * ---------------------------------------- */
 #if defined(PROFILE_GARDEN_LT1)
@@ -50,6 +51,18 @@
   #error "Pilih PROFILE_GARDEN_LT1 atau PROFILE_GARDEN_ROOF"
 #endif
 #define PIN_STATUS_LED      2
+
+/* ---------------- LCD 16x2 I2C (kedua profil) ----------------
+ *  SDA = GPIO21, SCL = GPIO22, VCC 5V (± 30 mA), GND. Alamat 0x27 atau 0x3F (cek dengan I2C scanner).
+ *  Halaman A (4 dtk): status zona   Z1:36% OFF AUTO / Z2:50% ON 04:32  (ON = sisa waktu manual / lama siram auto)
+ *  Halaman B (2 dtk): WiFi & ThingsBoard, jendela waktu siram (* = sedang dalam jendela) */
+#define PIN_I2C_SDA         21
+#define PIN_I2C_SCL         22
+#define LCD_ADDR            0x27
+#define LCD_COLS            16
+#define LCD_ROWS            2
+#define LCD_PAGE_A_MS       4000UL
+#define LCD_PAGE_B_MS       2000UL
 
 #define RELAY_ACTIVE_LOW    1                   // 1 = relay aktif saat pin LOW (umum)
 

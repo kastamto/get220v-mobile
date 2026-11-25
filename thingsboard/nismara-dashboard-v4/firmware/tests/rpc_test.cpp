@@ -34,6 +34,14 @@ String Preferences::getString(const char*, String d) { return d; } void Preferen
 #include "esp_task_wdt.h"
 int esp_task_wdt_init(int, bool) { return 0; } int esp_task_wdt_add(void*) { return 0; } int esp_task_wdt_reset() { return 0; }
 
+#include "Wire.h"
+WireT Wire; void WireT::begin(int, int) {}
+#include "LiquidCrystal_I2C.h"
+static int g_row = 0; static std::string g_screen[8];
+void LiquidCrystal_I2C::init() {} void LiquidCrystal_I2C::backlight() {}
+void LiquidCrystal_I2C::setCursor(int, int r) { g_row = r; }
+void LiquidCrystal_I2C::print(const String& s) { g_screen[g_row] = s; }
+
 #include "nismara_irrigation.cpp"      // sketch asli (disalin run_host_tests.sh)
 
 static int fails = 0;
@@ -81,6 +89,39 @@ int main() {
 #else
   CHECK(tel.find("\"z1_soil2\"") != std::string::npos, "profil 2 sensor/zona: ada key z1_soil2");
 #endif
+  // ---- tampilan LCD 16x2 ----
+  {
+    printf("\nLCD %dx%d\n", LCD_COLS, LCD_ROWS);
+    auto show = [&](const char* title) { printf("[%s]\n+----------------+\n", title); for (int i = 0; i < LCD_ROWS; i++) printf("|%s|\n", g_screen[i].c_str()); printf("+----------------+\n"); };
+    auto widthOk = [&]() { for (int i = 0; i < LCD_ROWS; i++) if ((int)g_screen[i].size() != LCD_COLS) return false; return true; };
+    rpc("90", "{\"method\":\"closeAll\"}"); rpc("91", "{\"method\":\"setAuto\",\"params\":{\"zone\":1,\"auto\":true}}");
+    g_raw = 2300; tick(1);                                          // soil 50%
+    g_ms = (g_ms / 6000) * 6000 + 6000;                             // awal siklus -> halaman A
+    drawLcd(); show("halaman A: normal");
+    CHECK(widthOk(), "semua baris tepat 16 kolom");
+    CHECK(g_screen[0] == "Z1:50% OFF AUTO ", "baris 0: Z1 50% OFF AUTO");
+#if NZONES == 2
+    CHECK(g_screen[1] == "Z2:50% OFF AUTO ", "baris 1: Z2 50% OFF AUTO");
+#else
+  #if SOILS_PER_ZONE > 1
+    CHECK(g_screen[1].find("S1:50% S2:50%") == 0, "baris 1: pembacaan 2 sensor (Roof)");
+  #endif
+#endif
+    rpc("92", "{\"method\":\"setValve\",\"params\":{\"zone\":1,\"state\":true,\"minutes\":2}}");
+    drawLcd(); show("halaman A: Z1 manual ON 2 menit");
+    CHECK(g_screen[0] == "Z1:50% ON 02:00 ", "baris 0: valve ON sisa 02:00");
+    g_raw = 100; tick(1); g_ms = (g_ms / 6000) * 6000 + 6000;       // sensor lepas -> ERR
+    drawLcd(); show("halaman A: sensor error");
+    CHECK(g_screen[0].find("Z1:ERR") == 0 && widthOk(), "sensor error tampil ERR, lebar tetap 16");
+    g_raw = 2300; tick(1); rpc("93", "{\"method\":\"closeAll\"}");
+    g_ms = (g_ms / 6000) * 6000 + 6000 + 4500;                      // halaman B
+    drawLcd(); show("halaman B: status");
+    CHECK(g_screen[0].find("WiFi-60 TB:OK") == 0, "halaman B baris 0: WiFi & TB");
+    CHECK(g_screen[1].find("Win*05-09,16-19") == 0 && widthOk(), "halaman B baris 1: jendela siram (* = dalam jendela)");
+    Z[0].soil[0] = 100; Z[0].avg = 100; Z[0].avgOk = true; Z[0].autoMode = false; g_ms = (g_ms / 6000) * 6000 + 6000;
+    drawLcd(); show("halaman A: 100% mode MAN");
+    CHECK(g_screen[0] == "Z1:100% OFF MAN ", "100% & mode MAN muat 16 kolom");
+  }
   // valve ON manual lalu sensor tanah error: tetap manual (operator override)
   printf("\n%s (%d gagal)\n", fails ? "ADA YANG GAGAL" : "SEMUA UJI LULUS", fails);
   return fails ? 1 : 0;

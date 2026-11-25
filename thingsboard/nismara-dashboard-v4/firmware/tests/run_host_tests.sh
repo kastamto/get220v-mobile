@@ -9,10 +9,10 @@ for P in LT1 ROOF; do
   mkdir -p "$TMP/$P"
   if [ "$P" = ROOF ]; then sed 's|^#define PROFILE_GARDEN_LT1|//&|; s|^//#define PROFILE_GARDEN_ROOF|#define PROFILE_GARDEN_ROOF|' "$FW/nismara_irrigation/config.h" > "$TMP/$P/config.h"
   else cp "$FW/nismara_irrigation/config.h" "$TMP/$P/config.h"; fi
-  g++ -std=c++17 -Wno-unused-variable -Wno-sign-compare -I"$HERE/stubs" -I"$TMP" -I"$TMP/$P" "$HERE/rpc_test.cpp" -o "$TMP/test_$P"
-  echo "=== profil $P ==="; "$TMP/test_$P" | grep -E "Profil|ok:|FAIL|UJI|GAGAL"
+  g++ -std=c++17 -Wno-unused-variable -Wno-sign-compare -Wno-format-truncation -I"$HERE/stubs" -I"$TMP" -I"$TMP/$P" "$HERE/rpc_test.cpp" -o "$TMP/test_$P"
+  echo "=== profil $P ==="; "$TMP/test_$P" | grep -E "Profil|ok:|FAIL|UJI|GAGAL|LCD|^\[|^\||^\+--"
 done
 # --- tampilan LCD 20x4 sketch GWT ---
 cp "$FW/nismara_gwt/nismara_gwt.ino" "$TMP/nismara_gwt.cpp"
-g++ -std=c++17 -Wno-unused-variable -Wno-sign-compare -I"$HERE/stubs" -I"$TMP" -I"$FW/nismara_gwt" "$HERE/lcd_test.cpp" -o "$TMP/test_lcd"
+g++ -std=c++17 -Wno-unused-variable -Wno-sign-compare -Wno-format-truncation -I"$HERE/stubs" -I"$TMP" -I"$FW/nismara_gwt" "$HERE/lcd_test.cpp" -o "$TMP/test_lcd"
 echo "=== LCD GWT ==="; "$TMP/test_lcd"

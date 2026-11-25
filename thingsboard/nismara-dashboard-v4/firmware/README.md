@@ -29,7 +29,7 @@ Flash dua kali: sekali dengan profil Lt.1 + token Lt.1, lalu ganti profil ke Roo
 ## 2. Cara flash (Arduino IDE)
 1. Salin folder `nismara_gwt/` atau `nismara_irrigation/` **utuh** (berikut `config.h`) ke `Documents/Arduino/`.
 2. Buka file `.ino` di dalamnya. Edit `config.h`: WiFi, host & token ThingsBoard, profil (irigasi), kalibrasi.
-3. Board **ESP32 Dev Module**. Library: `PubSubClient`, `ArduinoJson` v7, `LiquidCrystal_I2C` (hanya GWT).
+3. Board **ESP32 Dev Module**. Library: `PubSubClient`, `ArduinoJson` v7, `LiquidCrystal_I2C` (ketiga device).
 4. Upload. Buka Serial Monitor 115200 untuk melihat pembacaan sensor.
 
 ## 3. RPC — ON/OFF relay (valve) dari ThingsBoard

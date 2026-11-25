@@ -39,6 +39,8 @@ Pastikan jarak sensor ke permukaan air ≥ 20 cm (blind zone). `dist_cm = -1` di
 | Z2 relay (solenoid 2) | 27 | modul relay IN2 |
 | Z1 tombol manual | 13 | ke GND, pull-up internal |
 | Z2 tombol manual | 14 | ke GND, pull-up internal |
+| LCD 16x2 I2C SDA | 21 | I2C, alamat 0x27/0x3F, VCC 5V |
+| LCD 16x2 I2C SCL | 22 | I2C |
 | Status LED | 2 | onboard |
 
 ## 3. nismara_irrigation — profil Garden Roof (1 zone)
@@ -48,6 +50,7 @@ Pastikan jarak sensor ke permukaan air ≥ 20 cm (blind zone). `dist_cm = -1` di
 | Z1 soil sensor 1 / 2 | 34 / 35 | ADC1 |
 | Z1 relay (solenoid) | 26 | modul relay IN1 |
 | Z1 tombol manual | 13 | ke GND |
+| LCD 16x2 I2C SDA / SCL | 21 / 22 | I2C, alamat 0x27/0x3F, VCC 5V |
 | Status LED | 2 | onboard |
 
 ## 4. Wiring daya (irigasi)
@@ -70,5 +73,5 @@ Catatan:
 ## 5. Library & board
 
 Arduino IDE → board **ESP32 Dev Module** (core 2.0.x atau 3.x).
-Library: `PubSubClient`, `ArduinoJson` v7, `LiquidCrystal_I2C` (hanya GWT).
+Library: `PubSubClient`, `ArduinoJson` v7, `LiquidCrystal_I2C` (GWT, Garden Lt.1, Garden Roof).
 Sketch sudah lolos cek sintaks kedua profil; uji di hardware tetap perlu dilakukan.

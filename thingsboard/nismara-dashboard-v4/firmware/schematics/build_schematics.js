@@ -130,6 +130,7 @@ const sr04 = (name, trig, echo, t, e) => ({ title: name, sub: 'HC-SR04 ultrasoni
   { n: 'VCC', k: 'p5' }, { n: 'TRIG', k: 'sig', net: 'trig', esp: trig, fn: 'TRIG' }, { n: 'ECHO', k: 'sig', net: 'echo', esp: echo, fn: 'ECHO', div: true }, { n: 'GND', k: 'gnd' }] });
 const soil = (name, gpio, fn) => ({ title: name, sub: 'Capacitive soil moisture v1.2', pins: [
   { n: 'VCC', k: 'p33' }, { n: 'AOUT', k: 'sig', net: 'soil', esp: gpio, fn }, { n: 'GND', k: 'gnd' }] });
+const lcd16 = () => ({ title: 'LCD 16x2 I2C', sub: 'PCF8574 · 16 kolom × 2 baris · 0x27 / 0x3F', pins: [{ n: 'GND', k: 'gnd' }, { n: 'VCC', k: 'p5' }, { n: 'SDA', k: 'sig', net: 'sda', esp: 'GPIO21', fn: 'SDA' }, { n: 'SCL', k: 'sig', net: 'scl', esp: 'GPIO22', fn: 'SCL' }] });
 const btn = (name, gpio, fn) => ({ title: name, sub: 'Push button NO', pins: [{ n: '1', k: 'sig', net: 'btn', esp: gpio, fn }, { n: '2', k: 'gnd' }] });
 
 const GWT = wiring({
@@ -158,11 +159,12 @@ const GWT = wiring({
 const irrCommon = ['Hanya pin ADC1 (GPIO32–39) dipakai untuk soil sensor — ADC2 tidak bisa dibaca saat WiFi aktif.',
   'Dioda 1N4007 dipasang PARALEL solenoid (katoda ke sisi +12/24V) untuk meredam lonjakan saat relay lepas.',
   'Modul relay active-low (umum): IN = LOW → relay ON. Atur RELAY_ACTIVE_LOW di config.h. GND logika & GND 12/24V disatukan.',
-  'Tombol manual: tekan sekali = buka valve 5 menit, tekan lagi = tutup (pull-up internal ESP32).']
+  'Tombol manual: tekan sekali = buka valve 5 menit, tekan lagi = tutup (pull-up internal ESP32).',
+  'LCD 16x2 I2C (GPIO21/22): VCC 5V, alamat 0x27/0x3F (cek I2C scanner). Halaman A: status zona; halaman B: WiFi/TB & jendela waktu siram.']
 
 const LT1 = wiring({
-  title: 'NISMARA Garden Lt.1 — Wiring (2 zone)', subtitle: 'ESP32 · 2× soil capacitive (1 per zona) · modul relay 2 channel · 2× solenoid · 2 tombol manual',
-  left: [soil('Z1 · Soil sensor', 'GPIO34', 'ADC1'), soil('Z2 · Soil sensor', 'GPIO35', 'ADC1')],
+  title: 'NISMARA Garden Lt.1 — Wiring (2 zone)', subtitle: 'ESP32 · 2× soil capacitive (1 per zona) · LCD 16x2 I2C · modul relay 2 channel · 2× solenoid · 2 tombol manual',
+  left: [soil('Z1 · Soil sensor', 'GPIO34', 'ADC1'), soil('Z2 · Soil sensor', 'GPIO35', 'ADC1'), lcd16()],
   right: [
     { title: 'Relay 2 channel', sub: 'active-low · opto-isolated', pins: [{ n: 'VCC', k: 'p5' }, { n: 'IN1', k: 'sig', net: 'relay', esp: 'GPIO26', fn: 'Solenoid Z1' }, { n: 'IN2', k: 'sig', net: 'relay', esp: 'GPIO27', fn: 'Solenoid Z2' }, { n: 'GND', k: 'gnd' }] },
     btn('Tombol manual Z1', 'GPIO13', 'ke GND'), btn('Tombol manual Z2', 'GPIO14', 'ke GND')
@@ -170,7 +172,7 @@ const LT1 = wiring({
   power: (y, W) => {
     const a = railPanel(y, W, { title: 'Distribusi daya logika (5V)', rails: [{ name: '+5V', color: COL.pwr }, { name: '+3V3', color: COL.v33 }, { name: 'GND', color: COL.gnd }],
       boxes: [{ name: 'Buck 12/24V → 5V', sub: '2A, dari adaptor solenoid', taps: ['+5V', 'GND'] }, { name: 'ESP32', sub: 'VIN 5V · pin 3V3 keluar', taps: ['+5V', '+3V3', 'GND'] },
-        { name: 'Relay module', sub: 'VCC 5V', taps: ['+5V', 'GND'] }, { name: 'Soil sensor ×2', sub: 'VCC 3V3 dari ESP32', taps: ['+3V3', 'GND'] }] });
+        { name: 'Relay module', sub: 'VCC 5V', taps: ['+5V', 'GND'] }, { name: 'LCD 16x2 I2C', sub: 'VCC 5V · ±30 mA', taps: ['+5V', 'GND'] }, { name: 'Soil sensor ×2', sub: 'VCC 3V3 dari ESP32', taps: ['+3V3', 'GND'] }] });
     const b = solenoidStage(y + a.h + 24, W, [{ name: 'Solenoid Zone 1', relay: 'Relay CH1' }, { name: 'Solenoid Zone 2', relay: 'Relay CH2' }]);
     return { svg: a.svg + b.svg, h: a.h + 24 + b.h };
   },
@@ -178,8 +180,8 @@ const LT1 = wiring({
 });
 
 const ROOF = wiring({
-  title: 'NISMARA Garden Roof — Wiring (1 zone)', subtitle: 'ESP32 · 2× soil capacitive · modul relay 1 channel · 1× solenoid · 1 tombol manual',
-  left: [soil('Z1 · Soil 1', 'GPIO34', 'ADC1'), soil('Z1 · Soil 2', 'GPIO35', 'ADC1')],
+  title: 'NISMARA Garden Roof — Wiring (1 zone)', subtitle: 'ESP32 · 2× soil capacitive · LCD 16x2 I2C · modul relay 1 channel · 1× solenoid · 1 tombol manual',
+  left: [soil('Z1 · Soil 1', 'GPIO34', 'ADC1'), soil('Z1 · Soil 2', 'GPIO35', 'ADC1'), lcd16()],
   right: [
     { title: 'Relay 1 channel', sub: 'active-low · opto-isolated', pins: [{ n: 'VCC', k: 'p5' }, { n: 'IN', k: 'sig', net: 'relay', esp: 'GPIO26', fn: 'Solenoid Z1' }, { n: 'GND', k: 'gnd' }] },
     btn('Tombol manual Z1', 'GPIO13', 'ke GND')
@@ -187,7 +189,7 @@ const ROOF = wiring({
   power: (y, W) => {
     const a = railPanel(y, W, { title: 'Distribusi daya logika (5V)', rails: [{ name: '+5V', color: COL.pwr }, { name: '+3V3', color: COL.v33 }, { name: 'GND', color: COL.gnd }],
       boxes: [{ name: 'Buck 12/24V → 5V', sub: '2A, dari adaptor solenoid', taps: ['+5V', 'GND'] }, { name: 'ESP32', sub: 'VIN 5V · pin 3V3 keluar', taps: ['+5V', '+3V3', 'GND'] },
-        { name: 'Relay module', sub: 'VCC 5V', taps: ['+5V', 'GND'] }, { name: 'Soil sensor ×2', sub: 'VCC 3V3 dari ESP32', taps: ['+3V3', 'GND'] }] });
+        { name: 'Relay module', sub: 'VCC 5V', taps: ['+5V', 'GND'] }, { name: 'LCD 16x2 I2C', sub: 'VCC 5V · ±30 mA', taps: ['+5V', 'GND'] }, { name: 'Soil sensor ×2', sub: 'VCC 3V3 dari ESP32', taps: ['+3V3', 'GND'] }] });
     const b = solenoidStage(y + a.h + 24, W, [{ name: 'Solenoid Zone 1', relay: 'Relay CH1' }]);
     return { svg: a.svg + b.svg, h: a.h + 24 + b.h };
   },
@@ -233,11 +235,11 @@ const PIN_GWT = pinout('Pin config — NISMARA GWT', 'config.h: nismara_gwt', {
   '18': U('RAIN TRIG', COL.trig), '19': U('RAIN ECHO (÷)', COL.echo), '4': U('FLOW sensor', COL.flow), '2': U('LED status', COL.led), VIN: U('+5V masuk', COL.pwr), GND: U('GND', COL.gnd), '3V3': U('3V3 (tidak dipakai)', '#94a3b8')
 }, ['(÷) = lewat pembagi tegangan 1 kΩ / 2 kΩ.', ...pinNotes]);
 const PIN_LT1 = pinout('Pin config — NISMARA Garden Lt.1', 'config.h: PROFILE_GARDEN_LT1', {
-  '34': U('Z1 Soil sensor', COL.soil), '35': U('Z2 Soil sensor', COL.soil), '26': U('Relay Z1', COL.relay), '27': U('Relay Z2', COL.relay),
+  '34': U('Z1 Soil sensor', COL.soil), '35': U('Z2 Soil sensor', COL.soil), '26': U('Relay Z1', COL.relay), '27': U('Relay Z2', COL.relay), '21': U('LCD 16x2 SDA', COL.sda), '22': U('LCD 16x2 SCL', COL.scl),
   '13': U('Tombol Z1', COL.btn), '14': U('Tombol Z2', COL.btn), '2': U('LED status', COL.led), VIN: U('+5V masuk', COL.pwr), '3V3': U('3V3 → soil sensor', COL.v33), GND: U('GND', COL.gnd)
 }, pinNotes);
 const PIN_ROOF = pinout('Pin config — NISMARA Garden Roof', 'config.h: PROFILE_GARDEN_ROOF', {
-  '34': U('Z1 Soil 1', COL.soil), '35': U('Z1 Soil 2', COL.soil), '26': U('Relay Z1', COL.relay), '13': U('Tombol Z1', COL.btn), '2': U('LED status', COL.led),
+  '34': U('Z1 Soil 1', COL.soil), '35': U('Z1 Soil 2', COL.soil), '26': U('Relay Z1', COL.relay), '21': U('LCD 16x2 SDA', COL.sda), '22': U('LCD 16x2 SCL', COL.scl), '13': U('Tombol Z1', COL.btn), '2': U('LED status', COL.led),
   VIN: U('+5V masuk', COL.pwr), '3V3': U('3V3 → soil sensor', COL.v33), GND: U('GND', COL.gnd)
 }, pinNotes);
 
