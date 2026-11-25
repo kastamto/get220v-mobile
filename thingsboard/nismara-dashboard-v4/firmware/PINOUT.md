@@ -29,14 +29,12 @@ HC-SR04 ECHO ──[1 kΩ]──┬──► GPIO ESP32
 ```
 Pastikan jarak sensor ke permukaan air ≥ 20 cm (blind zone). `dist_cm = -1` di telemetry = sensor tidak terbaca.
 
-## 2. nismara_irrigation — profil Garden Lt.1 (2 zone)
+## 2. nismara_irrigation — profil Garden Lt.1 (2 zone, 2 soil sensor)
 
 | Fungsi | GPIO | Catatan |
 |---|---|---|
-| Z1 soil sensor 1 (AOUT) | 34 | ADC1, input only |
-| Z1 soil sensor 2 | 35 | ADC1, input only |
-| Z2 soil sensor 1 | 32 | ADC1 |
-| Z2 soil sensor 2 | 33 | ADC1 |
+| Z1 soil sensor (AOUT) — 1 sensor/zona | 34 | ADC1, input only |
+| Z2 soil sensor (AOUT) — 1 sensor/zona | 35 | ADC1, input only |
 | Z1 relay (solenoid 1) | 26 | modul relay IN1 |
 | Z2 relay (solenoid 2) | 27 | modul relay IN2 |
 | Z1 tombol manual | 13 | ke GND, pull-up internal |

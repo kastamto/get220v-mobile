@@ -5,7 +5,7 @@
  * ===================================================================== */
 
 /* ---------------- PILIH PROFIL ---------------- */
-#define PROFILE_GARDEN_LT1          // Garden Lt.1  : 2 zone, 4 soil, 2 solenoid
+#define PROFILE_GARDEN_LT1          // Garden Lt.1  : 2 zone, 2 soil (1 per zone), 2 solenoid
 //#define PROFILE_GARDEN_ROOF       // Garden Roof  : 1 zone, 2 soil, 1 solenoid
 
 /* ---------------- NETWORK / THINGSBOARD ---------------- */
@@ -19,10 +19,10 @@
  *  Hanya ADC1 (GPIO32-39) untuk soil sensor -> aman bersama WiFi.
  *
  *  GARDEN LT.1                      GARDEN ROOF
- *  Z1 soil1  GPIO34 (AOUT)          Z1 soil1  GPIO34
- *  Z1 soil2  GPIO35                 Z1 soil2  GPIO35
- *  Z2 soil1  GPIO32                 Z1 relay  GPIO26
- *  Z2 soil2  GPIO33                 Z1 button GPIO13 (ke GND)
+ *  Z1 soil   GPIO34 (AOUT)          Z1 soil1  GPIO34 (AOUT)
+ *  Z2 soil   GPIO35                 Z1 soil2  GPIO35
+ *                                   Z1 relay  GPIO26
+ *                                   Z1 button GPIO13 (ke GND)
  *  Z1 relay  GPIO26 (IN1)           LED       GPIO2
  *  Z2 relay  GPIO27 (IN2)
  *  Z1 button GPIO13 (ke GND)        Sensor capacitive : VCC 3.3V, GND, AOUT -> pin ADC
@@ -32,13 +32,15 @@
  * ---------------------------------------- */
 #if defined(PROFILE_GARDEN_LT1)
   #define NZONES            2
-  #define SOIL_PINS_INIT    {{34, 35}, {32, 33}}
+  #define SOILS_PER_ZONE    1                   // 1 sensor tanah per zona (total 2 unit)
+  #define SOIL_PINS_INIT    {{34}, {35}}
   #define RELAY_PINS_INIT   {26, 27}
   #define BUTTON_PINS_INIT  {13, 14}
   #define MAX_CONCURRENT    1                   // suplai bersama -> 1 valve sekaligus
   #define FW_VERSION        "irr-lt1-1.1"
 #elif defined(PROFILE_GARDEN_ROOF)
   #define NZONES            1
+  #define SOILS_PER_ZONE    2                   // 2 sensor tanah di zona ini (dirata-rata)
   #define SOIL_PINS_INIT    {{34, 35}}
   #define RELAY_PINS_INIT   {26}
   #define BUTTON_PINS_INIT  {13}

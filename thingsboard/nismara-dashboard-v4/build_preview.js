@@ -47,7 +47,8 @@ function snapshot(ts,hist){
   put(DEV.roof,'level_pct',ts,S.roof);put(DEV.roof,'distance_cm',ts,150-S.roof);put(DEV.roof,'volume_l',ts,S.roof*90);put(DEV.roof,'pressure_bar',ts,S.pump?2.1:2.8+Math.sin(ts/3e5)*.15);
   put(DEV.roof,'pump1_status',ts,S.roof<45?1:0);put(DEV.roof,'pump2_status',ts,0);put(DEV.roof,'pump1_runtime_s',ts,5400);put(DEV.roof,'pump2_runtime_s',ts,1200);put(DEV.roof,'pump1_cycles',ts,48);put(DEV.roof,'pump2_cycles',ts,12);put(DEV.roof,'tank_count',ts,4);put(DEV.roof,'rssi',ts,-58);put(DEV.roof,'uptime_s',ts,300000+(ts-now0)/1000);
   for(const id in S.zones){const z=S.zones[id],d=DEV[z.dev],p=z.pre;
-    put(d,p+'_soil1',ts,+z.soil[0].toFixed(1));put(d,p+'_soil2',ts,id==='g2'&&S.scn==='err'?-1:+z.soil[1].toFixed(1));put(d,p+'_valve',ts,z.valve);
+    put(d,p+'_soil1',ts,+z.soil[0].toFixed(1));if(id==='r1')put(d,p+'_soil2',ts,+z.soil[1].toFixed(1));  /* Lt.1: 1 sensor/zona */
+    if(id==='g2'&&S.scn==='err')ser[d.id+'|'+p+'_soil1'][ser[d.id+'|'+p+'_soil1'].length-1][1]=-1;put(d,p+'_valve',ts,z.valve);
     put(d,p+'_auto',ts,z.auto);put(d,p+'_start_pct',ts,z.start);put(d,p+'_stop_pct',ts,z.stop);
     put(d,p+'_remain_s',ts,z.until>ts?Math.round((z.until-ts)/1000):0);put(d,p+'_cycles',ts,z.cycles);put(d,p+'_runtime_s',ts,z.run);put(d,p+'_fault',ts,0);
   }
@@ -58,7 +59,7 @@ function step(ts,dtMin){   // satu langkah simulasi
   if(S.rain){S.rwTot+=12*dtMin;}
   S.pump=S.roof<52||(S.pump&&S.roof<80); if(S.pump){S.roof+=0.7*dtMin/5;S.flowTot+=22*dtMin;} else S.roof=Math.max(20,S.roof-0.35*dtMin/5);
   for(const id in S.zones){const z=S.zones[id];
-    const avg=(z.soil[0]+z.soil[1])/2;
+    const avg=(id==='r1')?(z.soil[0]+z.soil[1])/2:z.soil[0];
     if(z.valve && z.until && ts>=z.until){z.valve=0;z.until=0;}
     if(z.auto && !z.until){ if(!z.valve&&avg<z.start){z.valve=1;z.cycles++;} else if(z.valve&&avg>=z.stop)z.valve=0; }
     const d=z.valve?1.6:-0.18*(S.rain&&id!=='r1'?-1.5:1)*dtMin/5; 

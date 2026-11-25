@@ -3,6 +3,7 @@
  * ---------------------------------------------------------------------
  *  Profil, pin, kalibrasi, jadwal & keselamatan -> config.h
  *
+ *  Sensor : SOILS_PER_ZONE di config.h (Lt.1 = 1 sensor/zona, Roof = 2 sensor dirata-rata)
  *  Auto   : buka valve saat soil < start_pct, tutup saat >= stop_pct (histeresis)
  *  Jadwal : auto hanya MULAI dalam jendela waktu (NTP), opsional
  *  Safety : valve OFF saat boot, max run, cooldown, 1 valve sekaligus (Lt.1),
@@ -25,7 +26,7 @@
  *     zN_start_pct   zN_stop_pct
  *
  *  Telemetry (N=1..NZONES):
- *     zN_soil1 zN_soil2 (%, -1 = error)  zN_valve  zN_auto  zN_start_pct  zN_stop_pct
+ *     zN_soil1 [zN_soil2 hanya bila SOILS_PER_ZONE=2] (%, -1 = error)  zN_valve  zN_auto  zN_start_pct  zN_stop_pct
  *     zN_remain_s zN_cycles zN_runtime_s zN_fault(0 ok|1 sensor|2 max-run)
  *     rssi uptime_s heap fw_version in_window time_ok win
  *
@@ -39,7 +40,7 @@
 #include <esp_task_wdt.h>
 #include "config.h"
 
-const uint8_t SOIL_PINS[NZONES][2] = SOIL_PINS_INIT;
+const uint8_t SOIL_PINS[NZONES][SOILS_PER_ZONE] = SOIL_PINS_INIT;
 const uint8_t RELAY_PINS[NZONES]   = RELAY_PINS_INIT;
 const uint8_t BUTTON_PINS[NZONES]  = BUTTON_PINS_INIT;
 const uint8_t WINDOWS[NWINDOWS][2] = WINDOWS_INIT;
@@ -123,7 +124,7 @@ int readRaw(uint8_t pin) { uint32_t s = 0; for (int k = 0; k < 16; k++) { s += a
 void readSoil() {
   for (int i = 0; i < NZONES; i++) {
     float sum = 0; int n = 0;
-    for (int j = 0; j < 2; j++) {
+    for (int j = 0; j < SOILS_PER_ZONE; j++) {
       int raw = readRaw(SOIL_PINS[i][j]);
       bool ok = raw > 300 && raw < 4000;                            // lepas kabel / short => di luar range
       Z[i].soilOk[j] = ok;
@@ -306,7 +307,9 @@ void publishTelemetry() {
   for (int i = 0; i < NZONES; i++) {
     int n = i + 1; Zone& z = Z[i];
     snprintf(k, sizeof(k), "z%d_soil1", n);     d[k] = z.soilOk[0] ? roundf(z.soil[0] * 10) / 10 : -1;
+#if SOILS_PER_ZONE > 1
     snprintf(k, sizeof(k), "z%d_soil2", n);     d[k] = z.soilOk[1] ? roundf(z.soil[1] * 10) / 10 : -1;
+#endif
     snprintf(k, sizeof(k), "z%d_valve", n);     d[k] = z.valve ? 1 : 0;
     snprintf(k, sizeof(k), "z%d_auto", n);      d[k] = z.autoMode ? 1 : 0;
     snprintf(k, sizeof(k), "z%d_start_pct", n); d[k] = z.startPct;
@@ -387,7 +390,7 @@ void loop() {
   static uint32_t lastCal = 0;
   if (millis() - lastCal >= 500) {
     lastCal = millis();
-    for (int i = 0; i < NZONES; i++) for (int j = 0; j < 2; j++) {
+    for (int i = 0; i < NZONES; i++) for (int j = 0; j < SOILS_PER_ZONE; j++) {
       int raw = readRaw(SOIL_PINS[i][j]);
       Serial.printf("Z%d-S%d GPIO%d raw=%4d  -> %3.0f%%  %s\n", i + 1, j + 1, SOIL_PINS[i][j], raw,
                     constrain((SOIL_RAW_DRY - raw) * 100.0f / (SOIL_RAW_DRY - SOIL_RAW_WET), 0.0f, 100.0f),
@@ -404,7 +407,7 @@ void loop() {
     readSoil(); controlLoop();
     for (int i = 0; i < NZONES; i++)
       Serial.printf("Z%d soil %.0f/%.0f avg %.0f valve %d auto %d (%.0f-%.0f) win %d\n", i + 1,
-                    Z[i].soil[0], Z[i].soil[1], Z[i].avg, Z[i].valve, Z[i].autoMode, Z[i].startPct, Z[i].stopPct, inWindow());
+                    Z[i].soil[0], Z[i].soil[SOILS_PER_ZONE - 1], Z[i].avg, Z[i].valve, Z[i].autoMode, Z[i].startPct, Z[i].stopPct, inWindow());
   }
   if (publishNow || now - lastPub >= PUBLISH_MS) { publishNow = false; lastPub = now; publishTelemetry(); }
 }

@@ -56,8 +56,8 @@ var USER_DEFAULTS = {
   /* role: 'irrG' = Garden Lt.1, 'irrR' = Garden Roof. soil/valve = telemetry key.
      Override per zona: dry, wet, target, flowLpm */
   irrigZones: [
-    { id:'g1', role:'irrG', label:'Garden Lt.1 · Zone 1', soil:['z1_soil1','z1_soil2'], valve:'z1_valve', color:'#34d399' },
-    { id:'g2', role:'irrG', label:'Garden Lt.1 · Zone 2', soil:['z2_soil1','z2_soil2'], valve:'z2_valve', color:'#fbbf24' },
+    { id:'g1', role:'irrG', label:'Garden Lt.1 · Zone 1', soil:['z1_soil1'], valve:'z1_valve', color:'#34d399' },       // Lt.1: 1 sensor tanah per zona
+    { id:'g2', role:'irrG', label:'Garden Lt.1 · Zone 2', soil:['z2_soil1'], valve:'z2_valve', color:'#fbbf24' },
     { id:'r1', role:'irrR', label:'Garden Roof · Zone 1', soil:['z1_soil1','z1_soil2'], valve:'z1_valve', color:'#60a5fa' }
   ],
 
@@ -908,7 +908,7 @@ function renderIrrigation(ctx){
         '<div class="zn-gauge">'+gaugeSvg(i, z)+'<div class="ring-pulse"></div><div class="ctr"><div class="p">'+(i.avg==null?'--':i.avg.toFixed(0))+'<small>%</small></div><div class="t">SOIL</div></div></div>'+
         '<div class="zn-side">'+
           '<div style="display:flex;align-items:center;gap:8px"><span class="wtr-tag '+tagCls+'" style="margin-top:0">'+tagTxt+'</span><span class="zn-drops"><span>💧</span><span>💧</span><span>💧</span></span></div>'+
-          '<div class="zn-sensors">'+sensorBox('Soil 1', i.raw[0], i.soils[0])+sensorBox('Soil 2', i.raw[1], i.soils[1])+'</div>'+
+          '<div class="zn-sensors" style="grid-template-columns:repeat('+z.soil.length+',1fr)">'+z.soil.map(function(_,k){ return sensorBox(z.soil.length>1?'Soil '+(k+1):'Soil sensor', i.raw[k], i.soils[k]); }).join('')+'</div>'+
           sparkSvg(zoneAvgSeries(ctx,z), z.color, i.dry, i.wet)+
         '</div>'+
       '</div>'+
@@ -1543,7 +1543,7 @@ function renderGardenMap(ctx){
       if (i.on){ for (var q=0;q<3;q++) s+='<circle class="wtr-spray" style="animation-delay:'+(q*0.5)+'s" cx="'+cx+'" cy="'+sy+'" r="'+(zw*0.26)+'" fill="none" stroke="#7dd3fc" stroke-width="2.5"/>'; s+='<text x="'+cx+'" y="'+(sy+6)+'" text-anchor="middle" font-size="20">💦</text>'; }
       else s+='<circle cx="'+cx+'" cy="'+sy+'" r="5" fill="#94a3b8" opacity=".7"/>';
       // probe sensor
-      [0.2,0.8].forEach(function(f,idx){
+      (i.raw.length===1?[0.5]:[0.2,0.8]).forEach(function(f,idx){
         var px=zx+zw*f, py=zy+zh-38, raw=i.raw[idx], val=i.soils[idx], bad=(raw==null||val==null);
         s+='<rect x="'+(px-1.5)+'" y="'+py+'" width="3" height="26" rx="1.5" fill="#e2e8f0" opacity=".85"/>'+
            '<circle cx="'+px+'" cy="'+py+'" r="4" fill="'+(bad?'#ef4444':'#22d3ee')+'" stroke="#fff" stroke-width="1.2"/>'+

@@ -160,8 +160,8 @@ const irrCommon = ['Hanya pin ADC1 (GPIO32–39) dipakai untuk soil sensor — A
   'Tombol manual: tekan sekali = buka valve 5 menit, tekan lagi = tutup (pull-up internal ESP32).']
 
 const LT1 = wiring({
-  title: 'NISMARA Garden Lt.1 — Wiring (2 zone)', subtitle: 'ESP32 · 4× soil capacitive · modul relay 2 channel · 2× solenoid · 2 tombol manual',
-  left: [soil('Z1 · Soil 1', 'GPIO34', 'ADC1'), soil('Z1 · Soil 2', 'GPIO35', 'ADC1'), soil('Z2 · Soil 1', 'GPIO32', 'ADC1'), soil('Z2 · Soil 2', 'GPIO33', 'ADC1')],
+  title: 'NISMARA Garden Lt.1 — Wiring (2 zone)', subtitle: 'ESP32 · 2× soil capacitive (1 per zona) · modul relay 2 channel · 2× solenoid · 2 tombol manual',
+  left: [soil('Z1 · Soil sensor', 'GPIO34', 'ADC1'), soil('Z2 · Soil sensor', 'GPIO35', 'ADC1')],
   right: [
     { title: 'Relay 2 channel', sub: 'active-low · opto-isolated', pins: [{ n: 'VCC', k: 'p5' }, { n: 'IN1', k: 'sig', net: 'relay', esp: 'GPIO26', fn: 'Solenoid Z1' }, { n: 'IN2', k: 'sig', net: 'relay', esp: 'GPIO27', fn: 'Solenoid Z2' }, { n: 'GND', k: 'gnd' }] },
     btn('Tombol manual Z1', 'GPIO13', 'ke GND'), btn('Tombol manual Z2', 'GPIO14', 'ke GND')
@@ -169,7 +169,7 @@ const LT1 = wiring({
   power: (y, W) => {
     const a = railPanel(y, W, { title: 'Distribusi daya logika (5V)', rails: [{ name: '+5V', color: COL.pwr }, { name: '+3V3', color: COL.v33 }, { name: 'GND', color: COL.gnd }],
       boxes: [{ name: 'Buck 12/24V → 5V', sub: '2A, dari adaptor solenoid', taps: ['+5V', 'GND'] }, { name: 'ESP32', sub: 'VIN 5V · pin 3V3 keluar', taps: ['+5V', '+3V3', 'GND'] },
-        { name: 'Relay module', sub: 'VCC 5V', taps: ['+5V', 'GND'] }, { name: 'Soil sensor ×4', sub: 'VCC 3V3 dari ESP32', taps: ['+3V3', 'GND'] }] });
+        { name: 'Relay module', sub: 'VCC 5V', taps: ['+5V', 'GND'] }, { name: 'Soil sensor ×2', sub: 'VCC 3V3 dari ESP32', taps: ['+3V3', 'GND'] }] });
     const b = solenoidStage(y + a.h + 24, W, [{ name: 'Solenoid Zone 1', relay: 'Relay CH1' }, { name: 'Solenoid Zone 2', relay: 'Relay CH2' }]);
     return { svg: a.svg + b.svg, h: a.h + 24 + b.h };
   },
@@ -232,7 +232,7 @@ const PIN_GWT = pinout('Pin config — NISMARA GWT', 'config.h: nismara_gwt', {
   '18': U('RAIN TRIG', COL.trig), '19': U('RAIN ECHO (÷)', COL.echo), '4': U('FLOW sensor', COL.flow), '2': U('LED status', COL.led), VIN: U('+5V masuk', COL.pwr), GND: U('GND', COL.gnd), '3V3': U('3V3 (tidak dipakai)', '#94a3b8')
 }, ['(÷) = lewat pembagi tegangan 1 kΩ / 2 kΩ.', ...pinNotes]);
 const PIN_LT1 = pinout('Pin config — NISMARA Garden Lt.1', 'config.h: PROFILE_GARDEN_LT1', {
-  '34': U('Z1 Soil 1', COL.soil), '35': U('Z1 Soil 2', COL.soil), '32': U('Z2 Soil 1', COL.soil), '33': U('Z2 Soil 2', COL.soil), '26': U('Relay Z1', COL.relay), '27': U('Relay Z2', COL.relay),
+  '34': U('Z1 Soil sensor', COL.soil), '35': U('Z2 Soil sensor', COL.soil), '26': U('Relay Z1', COL.relay), '27': U('Relay Z2', COL.relay),
   '13': U('Tombol Z1', COL.btn), '14': U('Tombol Z2', COL.btn), '2': U('LED status', COL.led), VIN: U('+5V masuk', COL.pwr), '3V3': U('3V3 → soil sensor', COL.v33), GND: U('GND', COL.gnd)
 }, pinNotes);
 const PIN_ROOF = pinout('Pin config — NISMARA Garden Roof', 'config.h: PROFILE_GARDEN_ROOF', {
@@ -245,11 +245,11 @@ const PIN_ROOF = pinout('Pin config — NISMARA Garden Roof', 'config.h: PROFILE
 function soilDiagram() {
   const W = 1060; let b = '';
   b += T(W / 2, 30, 'Soil Moisture Sensor — Detail Wiring', { size: 20, anchor: 'middle', w: 700 });
-  b += T(W / 2, 50, 'Capacitive v1.2 (3 pin: GND · VCC · AOUT) → ESP32 ADC1 · contoh Garden Lt.1 (4 sensor). Garden Roof = Z1-S1 & Z1-S2 saja.', { size: 11.5, anchor: 'middle', fill: '#64748b' });
+  b += T(W / 2, 50, 'Capacitive v1.2 (3 pin: GND · VCC · AOUT) → ESP32 ADC1 · 2 sensor per device: GPIO34 & GPIO35 (Lt.1: 1 per zona · Roof: 2 sensor di zona 1)', { size: 11.5, anchor: 'middle', fill: '#64748b' });
 
-  /* ---- A. wiring 4 sensor -> ESP32 ---- */
+  /* ---- A. wiring 2 sensor -> ESP32 ---- */
   b += T(30, 86, 'A. Sambungan ke ESP32', { size: 13.5, w: 700 });
-  const sens = [['Z1 · Sensor 1', 'GPIO34'], ['Z1 · Sensor 2', 'GPIO35'], ['Z2 · Sensor 1', 'GPIO32'], ['Z2 · Sensor 2', 'GPIO33']];
+  const sens = [['Sensor 1', 'GPIO34', 'Lt.1: Zone 1  ·  Roof: Z1-S1'], ['Sensor 2', 'GPIO35', 'Lt.1: Zone 2  ·  Roof: Z1-S2']];
   const x0 = 40, sw = 200, sh = 96, top0 = 160, gap = 26, railV = 470, railG = 505, espX = 700, espW = 230;
   const espTop = top0 - 70, espBot = top0 + sens.length * (sh + gap) - gap + 10;
   // rails
@@ -265,7 +265,7 @@ function soilDiagram() {
     const y = top0 + i * (sh + gap), px = x0 + sw;
     // papan sensor
     b += `<rect x="${x0}" y="${y}" width="${sw}" height="${sh}" rx="8" fill="#ecfdf5" stroke="#0d9488" stroke-width="1.8"/>` + T(x0 + sw / 2 - 14, y + 18, sn[0], { size: 12, anchor: 'middle', w: 700 }) +
-      T(x0 + sw / 2 - 14, y + 32, 'Capacitive v1.2', { size: 9.5, anchor: 'middle', fill: '#64748b' });
+      T(x0 + sw / 2 - 14, y + 32, sn[2], { size: 9.5, anchor: 'middle', fill: '#64748b' });
     // 3 pin: VCC(merah) AOUT(kuning) GND(hitam)
     const pins = [['VCC', 30, COL.pwr, '#dc2626'], ['AOUT', 58, '#ca8a04', '#eab308'], ['GND', 86 - 4, '#111827', '#111827']];
     const py = { VCC: y + 52, AOUT: y + 66, GND: y + 80 };
@@ -310,7 +310,7 @@ function soilDiagram() {
   b += `<rect x="30" y="${by0 + 330}" width="330" height="86" rx="8" fill="#f1f5f9" stroke="#cbd5e1"/>` + T(42, by0 + 349, 'Warna kabel (standar yang disarankan)', { size: 11, w: 700 }) +
     `<line x1="44" y1="${by0 + 364}" x2="74" y2="${by0 + 364}" stroke="#dc2626" stroke-width="4"/>` + T(84, by0 + 368, 'Merah  = VCC  → +3V3 ESP32 (spek 3,3–5,5V)', { size: 10.5 }) +
     `<line x1="44" y1="${by0 + 380}" x2="74" y2="${by0 + 380}" stroke="#111827" stroke-width="4"/>` + T(84, by0 + 384, 'Hitam  = GND  → GND ESP32', { size: 10.5 }) +
-    `<line x1="44" y1="${by0 + 396}" x2="74" y2="${by0 + 396}" stroke="#eab308" stroke-width="4"/>` + T(84, by0 + 400, 'Kuning = AOUT → GPIO ADC1 (34/35/32/33)', { size: 10.5 });
+    `<line x1="44" y1="${by0 + 396}" x2="74" y2="${by0 + 396}" stroke="#eab308" stroke-width="4"/>` + T(84, by0 + 400, 'Kuning = AOUT → GPIO ADC1 (34 / 35)', { size: 10.5 });
 
   // C: penampang tanah
   const cx0 = 400, cy0 = by0 + 20, cw = 340;
@@ -326,8 +326,8 @@ function soilDiagram() {
   b += `<line x1="${cx0 - 14}" y1="${cy0 + 124}" x2="${cx0 - 14}" y2="${cy0 + 190}" stroke="#2563eb" stroke-width="1.6"/><polygon points="${cx0 - 14},${cy0 + 124} ${cx0 - 18},${cy0 + 132} ${cx0 - 10},${cy0 + 132}" fill="#2563eb"/><polygon points="${cx0 - 14},${cy0 + 190} ${cx0 - 18},${cy0 + 182} ${cx0 - 10},${cy0 + 182}" fill="#2563eb"/>` +
     T(cx0 - 20, cy0 + 160, '5–10 cm', { size: 10, anchor: 'end', fill: '#2563eb', w: 700 }) + T(cx0 - 20, cy0 + 173, '(zona akar)', { size: 9, anchor: 'end', fill: '#2563eb' });
   b += `<rect x="${cx0}" y="${cy0 + 276}" width="${cw}" height="108" rx="8" fill="#f1f5f9" stroke="#cbd5e1"/>` + T(cx0 + 12, cy0 + 295, 'Penempatan per zona', { size: 11, w: 700 }) +
-    T(cx0 + 12, cy0 + 313, '• Sensor 1 & 2 di titik berbeda (±1/3 & 2/3 lebar bedeng).', { size: 10 }) +
-    T(cx0 + 12, cy0 + 329, '• Jauhi titik tetes/sprinkler langsung (bacaan terlalu basah).', { size: 10 }) +
+    T(cx0 + 12, cy0 + 313, '• Lt.1: 1 sensor di titik representatif zona (tengah, jauh dari tetesan).', { size: 10 }) +
+    T(cx0 + 12, cy0 + 329, '• Roof: 2 sensor di titik berbeda (±1/3 & 2/3 lebar). Jauhi tetesan langsung.', { size: 10 }) +
     T(cx0 + 12, cy0 + 345, '• Tekan tanah rapat di sekeliling probe, tanpa celah udara.', { size: 10 }) +
     T(cx0 + 12, cy0 + 361, '• Jangan membengkokkan/menggores PCB; masuk tegak lurus.', { size: 10 });
 
@@ -342,7 +342,7 @@ function soilDiagram() {
   const yN = by0 + 440;
   const notes = ['Catu 3,3 V dari pin 3V3 ESP32: aman & sesuai spek (3,3–5,5 V; AOUT 0–3,0 V). Sensor tiruan bisa berbeda — ukur AOUT dengan multimeter sebelum disambung; harus ≤ 3,3 V.',
     'Hanya pin ADC1 (GPIO32–39) — ADC2 tidak dapat dibaca saat WiFi aktif. GPIO34/35 input-only (aman untuk ADC).',
-    'Arus 4 sensor ± 20 mA dari pin 3V3 ESP32: aman. Untuk lebih dari 6 sensor gunakan regulator 3,3V terpisah (GND disatukan).',
+    'Arus 2 sensor ± 10 mA dari pin 3V3 ESP32: aman. Untuk lebih dari 6 sensor gunakan regulator 3,3V terpisah (GND disatukan).',
     'Kalibrasi: set SOIL_CAL_MODE 1 di config.h, baca raw di udara (→ SOIL_RAW_DRY) dan tercelup sampai garis MAX (→ SOIL_RAW_WET).'];
   b += `<rect x="30" y="${yN}" width="${W - 60}" height="${notes.length * 18 + 34}" rx="8" fill="#fef2f2" stroke="#ef4444"/>` + T(46, yN + 22, 'Peringatan', { size: 12, w: 700, fill: '#991b1b' });
   notes.forEach((n, i) => b += T(46, yN + 42 + i * 18, '• ' + n, { size: 10.8, fill: '#7f1d1d' }));

@@ -72,6 +72,15 @@ int main() {
   r = rpc("12", "{\"method\":\"closeAll\"}"); CHECK(!relayOn(0) && (NZONES < 2 || !relayOn(1)), "closeAll -> semua relay OFF");
   r = rpc("13", "{\"method\":\"foo\"}"); CHECK(r.find("error") != std::string::npos, "method tidak dikenal -> error");
   r = rpc("14", "{bukan json"); CHECK(r.find("error") != std::string::npos, "JSON rusak -> error, tidak crash");
+  g_pub.clear(); publishTelemetry();
+  std::string tel; for (auto& m : g_pub) if (m.first == "v1/devices/me/telemetry") tel = m.second;
+  CHECK(tel.find("\"z1_soil1\"") != std::string::npos, "telemetry berisi z1_soil1");
+#if SOILS_PER_ZONE == 1
+  CHECK(tel.find("soil2") == std::string::npos, "profil 1 sensor/zona: tidak ada key soil2");
+  CHECK(NZONES < 2 || tel.find("\"z2_soil1\"") != std::string::npos, "zona 2 memakai z2_soil1");
+#else
+  CHECK(tel.find("\"z1_soil2\"") != std::string::npos, "profil 2 sensor/zona: ada key z1_soil2");
+#endif
   // valve ON manual lalu sensor tanah error: tetap manual (operator override)
   printf("\n%s (%d gagal)\n", fails ? "ADA YANG GAGAL" : "SEMUA UJI LULUS", fails);
   return fails ? 1 : 0;

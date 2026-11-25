@@ -15,14 +15,18 @@ Urutan pin di PCB v1.2: **GND – VCC – AOUT** (cek silkscreen, varian lain bi
 
 ## 2. Pin per device (sesuai `config.h`)
 
-| Device | Zona | Sensor | GPIO |
-|---|---|---|---|
-| Garden Lt.1 | Z1 | S1 / S2 | 34 / 35 |
-| Garden Lt.1 | Z2 | S1 / S2 | 32 / 33 |
-| Garden Roof | Z1 | S1 / S2 | 34 / 35 |
+| Device | Zona | Sensor | GPIO | `SOILS_PER_ZONE` |
+|---|---|---|---|---|
+| Garden Lt.1 | Z1 | 1 sensor | 34 | 1 |
+| Garden Lt.1 | Z2 | 1 sensor | 35 | 1 |
+| Garden Roof | Z1 | 2 sensor (dirata-rata) | 34 / 35 | 2 |
+
+Garden Lt.1 memakai **total 2 sensor** (1 per zona), tanpa sensor cadangan: jika sensor sebuah zona error, valve zona itu
+ditutup (fail-safe) dan dashboard menampilkan peringatan. Sensor kedua di Roof memberi redundansi (rata-rata dua titik).
+Telemetry Lt.1 hanya berisi `z1_soil1` dan `z2_soil1` (tidak ada `*_soil2`).
 
 Hanya **ADC1** (GPIO32–39): ADC2 tidak bisa dibaca saat WiFi aktif. GPIO34/35 input-only — aman untuk ADC.
-Catu: 4 sensor ± 20 mA dari pin 3V3 ESP32 (aman). Lebih dari ±6 sensor → regulator 3,3 V terpisah, GND disatukan.
+Catu: 2 sensor ± 10 mA dari pin 3V3 ESP32 (aman). Lebih dari ±6 sensor → regulator 3,3 V terpisah, GND disatukan.
 
 ## 3. Kabel & pemasangan
 - Kabel 3-core 0,22–0,5 mm² (kabel sensor/CCTV). ≤ 5 m kabel biasa; 5–15 m **shielded**, shield ke GND di sisi ESP32 saja.
