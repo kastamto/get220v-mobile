@@ -6,8 +6,8 @@ build_bundle.js             node build_bundle.js  ->  nismara_water_bundle.json
 build_dashboard.js          node build_dashboard.js  ->  nismara_dashboard.json + nismara_irrigation_dashboard.json
 nismara_water_bundle.json   WIDGETS BUNDLE (import ke ThingsBoard)
 firmware/PINOUT.md           tabel pin, wiring, kalibrasi
-firmware/nismara_gwt/        ESP32 GWT: 2 tank + rain tank + flow 1"   (config.h = semua pin & WiFi/token)
-firmware/nismara_irrigation/ ESP32 irigasi: profil Garden Lt.1 (2 zone) / Garden Roof (1 zone)  (config.h)
+firmware/ready_to_flash/     3 folder SIAP FLASH: nismara_gwt, nismara_garden_lt1, nismara_garden_roof
+firmware/nismara_gwt/ + nismara_irrigation/   sumber kode (edit di sini, lalu jalankan firmware/make_ready_to_flash.py)
 preview.html                 preview standalone dengan data simulasi (node build_preview.js)
 ```
 

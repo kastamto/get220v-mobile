@@ -1,34 +1,34 @@
 # NISMARA firmware — folder, cara flash, RPC
 
-## 1. Struktur folder (3 device = 2 sketch)
+## 1. Struktur folder — FLASH DARI `ready_to_flash/`
 
 ```
 firmware/
-├── nismara_gwt/                  ← device 1: GWT (2 tank + rain tank + flow 1" + LCD 20x4)
-│   ├── nismara_gwt.ino           (nama .ino HARUS sama dengan nama foldernya)
-│   └── config.h                  (pin, WiFi, token, kalibrasi)
-├── nismara_irrigation/           ← device 2 DAN 3: Garden Lt.1 & Garden Roof
-│   ├── nismara_irrigation.ino    (sketch yang sama untuk kedua device)
-│   └── config.h                  (pilih profil: PROFILE_GARDEN_LT1 atau PROFILE_GARDEN_ROOF)
-├── SOIL_SENSOR.md                detail wiring, pemasangan & kalibrasi soil sensor
-├── schematics/                   diagram wiring + pin config (+ soil_sensor_wiring.svg)
-├── tests/                        uji logika di komputer (RPC, relay) — tanpa hardware
-├── PINOUT.md
-└── README.md
+├── ready_to_flash/                 ← 3 FOLDER SIAP FLASH (satu per device) — pakai ini
+│   ├── nismara_gwt/                    device GWT              (.ino + config.h)
+│   ├── nismara_garden_lt1/             device Garden Lt.1      (.ino + config.h, PROFILE_GARDEN_LT1 sudah aktif)
+│   └── nismara_garden_roof/            device Garden Roof      (.ino + config.h, PROFILE_GARDEN_ROOF sudah aktif)
+├── nismara_gwt/                    ← SUMBER GWT        (edit di sini)
+├── nismara_irrigation/             ← SUMBER IRIGASI    (satu kode untuk Lt.1 & Roof, edit di sini)
+├── make_ready_to_flash.py          ← menyalin sumber → ready_to_flash/ (dengan profil & token placeholder per device)
+├── schematics/   tests/   PINOUT.md   SOIL_SENSOR.md   README.md
 ```
 
-| Device | Folder sketch | Setting di `config.h` | Token TB |
-|---|---|---|---|
-| GWT (`nismara gwt`) | `nismara_gwt/` | — | token device GWT |
-| Garden Lt.1 | `nismara_irrigation/` | `#define PROFILE_GARDEN_LT1` | token device Garden Lt.1 |
-| Garden Roof | `nismara_irrigation/` | `#define PROFILE_GARDEN_ROOF` | token device Garden Roof |
+| Device | Folder untuk di-flash | Yang diisi di `config.h` |
+|---|---|---|
+| GWT (`nismara gwt`) | `ready_to_flash/nismara_gwt/` | WiFi, `TB_TOKEN`, geometri tangki |
+| Garden Lt.1 | `ready_to_flash/nismara_garden_lt1/` | WiFi, `TB_TOKEN` (placeholder `TOKEN_GARDEN_LT1`) |
+| Garden Roof | `ready_to_flash/nismara_garden_roof/` | WiFi, `TB_TOKEN` (placeholder `TOKEN_GARDEN_ROOF`) |
 
-Garden Lt.1 dan Garden Roof memakai **satu sketch**; bedanya hanya profil (jumlah zona & pin) dan token.
-Flash dua kali: sekali dengan profil Lt.1 + token Lt.1, lalu ganti profil ke Roof + token Roof.
+**Kenapa ada sumber + hasil generate?** Logika irigasi (auto, RPC, LCD, keselamatan) hanya ditulis **sekali** di `nismara_irrigation/`.
+Folder `ready_to_flash/` hanyalah salinan per device yang dibuat otomatis, sehingga Lt.1 dan Roof tidak pernah berbeda versi.
+Jangan edit `ready_to_flash/` langsung. Setelah mengubah sumber: `python3 -I firmware/make_ready_to_flash.py`
+(`tests/run_host_tests.sh` akan gagal bila `ready_to_flash/` belum disinkronkan).
 
 ## 2. Cara flash (Arduino IDE)
-1. Salin folder `nismara_gwt/` atau `nismara_irrigation/` **utuh** (berikut `config.h`) ke `Documents/Arduino/`.
-2. Buka file `.ino` di dalamnya. Edit `config.h`: WiFi, host & token ThingsBoard, profil (irigasi), kalibrasi.
+1. Salin **satu** folder dari `ready_to_flash/` (mis. `nismara_garden_lt1`) utuh ke `Documents/Arduino/`
+   (`.ino` dan `config.h` harus satu folder; nama `.ino` = nama folder).
+2. Buka `.ino` di dalamnya. Edit `config.h`: WiFi, host & **token ThingsBoard device itu**, kalibrasi.
 3. Board **ESP32 Dev Module**. Library: `PubSubClient`, `ArduinoJson` v7, `LiquidCrystal_I2C` (ketiga device).
 4. Upload. Buka Serial Monitor 115200 untuk melihat pembacaan sensor.
 
