@@ -1,0 +1,810 @@
+<!--
+==============================================================================
+  SIAGA-RM / NISMARA  WATER SYSTEM OVERVIEW  v5  (multi-datasource)  by get220v
+  ---------------------------------------------------------------------------
+  Rantai: Rain Water -> GWT (2 tank) -> Transfer Pump -> Roof Tank (booster)
+          + Smart Irrigation (Garden Lt.1 = 2 zone, Garden Roof = 1 zone)
+  ---------------------------------------------------------------------------
+  TB SETUP:
+    Widget type : Time series
+    Datasources : assign 5 device ke SATU widget (urutan bebas, auto-routed by key):
+                  1. GWT        (2 tank + RAIN tank + RAIN flow)
+                  2. Flow transfer pump
+                  3. Roof tank
+                  4. Garden Lt.1  (2 zone)   -> nama device JANGAN mengandung "roof"
+                  5. Garden Roof  (1 zone)   -> nama device HARUS mengandung "roof"/"atap"
+    DataKeys:
+      GWT   : t1_level t1_vol_l t1_dist_cm t2_level t2_vol_l t2_dist_cm
+              balance_diff balance_ok rssi uptime_s heap
+              + RAIN : rw_level rw_vol_l rw_dist_cm rw_flow_lpm rw_total_liters rw_pulses_win
+      FLOW  : flow_lpm total_liters pulses_win pump_running rssi uptime_s heap
+      ROOF  : level_pct level_cm distance_cm volume_l pressure_bar pressure_v
+              pump1_status pump2_status pump1_runtime_s pump2_runtime_s
+              pump1_cycles pump2_cycles tank_count rssi fw_version uptime_s
+      GARDEN LT.1 : z1_soil1 z1_soil2 z1_valve z2_soil1 z2_soil2 z2_valve rssi uptime_s heap
+      GARDEN ROOF : z1_soil1 z1_soil2 z1_valve rssi uptime_s heap
+                    (z*_soil = kelembaban %, z*_valve = 0/1)
+    Time window : >= 24 jam.
+    JS tab      : paste widget.js
+==============================================================================
+-->
+<style>
+.wtr-root{
+  --bg-1:#060b1a; --bg-2:#0a1a2e;
+  --card-bg:rgba(255,255,255,0.035);
+  --card-border:rgba(148,163,184,0.12);
+  --text-1:#f1f5f9; --text-2:#cbd5e1; --text-3:#94a3b8; --text-4:#64748b;
+  --water-1:#06b6d4; --water-2:#0891b2; --water-3:#0e7490;
+  --get220v-accent:#22d3ee;
+  --rain:#2dd4bf; --soil:#34d399;
+  --success:#10b981; --warning:#f59e0b; --danger:#ef4444;
+  --success-soft:rgba(16,185,129,0.15);
+  --warning-soft:rgba(245,158,11,0.15);
+  --danger-soft:rgba(239,68,68,0.15);
+  background:
+    radial-gradient(1000px 500px at 0% 0%, rgba(6,182,212,0.12), transparent),
+    linear-gradient(180deg, var(--bg-1) 0%, var(--bg-2) 100%);
+  color:var(--text-2);
+  font-family:-apple-system,BlinkMacSystemFont,Inter,Segoe UI,Roboto,system-ui,sans-serif;
+  font-size:13px; line-height:1.5; height:100%; width:100%; min-width:0;
+  border-radius:14px; padding:20px 22px; box-sizing:border-box;
+  overflow-y:auto; overflow-x:hidden;
+}
+.wtr-root *{box-sizing:border-box; min-width:0}
+.wtr-root::-webkit-scrollbar{width:10px}
+.wtr-root::-webkit-scrollbar-thumb{background:rgba(148,163,184,.2);border-radius:5px}
+.wtr-root button{font-family:inherit;cursor:pointer;border:none;outline:none;background:none;color:inherit}
+
+/* HEADER */
+.wtr-hdr{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding-bottom:16px;border-bottom:1px solid var(--card-border)}
+.wtr-hdr-l{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.wtr-logo{width:46px;height:46px;border-radius:12px;background:linear-gradient(135deg,var(--water-1),var(--water-3));display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+.wtr-hdr-title{font-size:18px;font-weight:700;color:var(--text-1);line-height:1.2}
+.wtr-hdr-sub{font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:1.2px;margin-top:3px}
+.wtr-brand{font-size:10px;color:var(--get220v-accent);font-weight:700;letter-spacing:1.5px;margin-top:4px;text-transform:uppercase}
+.wtr-hdr-r{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.wtr-status{display:inline-flex;align-items:center;gap:8px;padding:7px 14px;background:var(--success-soft);border:1px solid rgba(16,185,129,0.3);border-radius:999px;font-size:11px;font-weight:700;color:var(--success);white-space:nowrap}
+.wtr-status::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--success);box-shadow:0 0 8px var(--success);animation:wtrBlink 2s ease-in-out infinite}
+@keyframes wtrBlink{50%{opacity:0.4}}
+.wtr-status.offline{background:rgba(100,116,139,.15);border-color:rgba(100,116,139,.3);color:var(--text-3)}
+.wtr-status.offline::before{background:var(--text-3);animation:none;box-shadow:none}
+.wtr-status.degraded{background:var(--warning-soft);border-color:rgba(245,158,11,.3);color:var(--warning)}
+.wtr-status.degraded::before{background:var(--warning);box-shadow:0 0 8px var(--warning)}
+.wtr-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:rgba(255,255,255,.04);border:1px solid var(--card-border);border-radius:8px;font-size:11px;font-weight:600;color:var(--text-3);white-space:nowrap}
+.wtr-dev-chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.wtr-dev-chip{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:8px;font-size:11px;font-weight:600;background:rgba(255,255,255,.03);border:1px solid var(--card-border);color:var(--text-3)}
+.wtr-dev-chip .led{width:8px;height:8px;border-radius:50%;background:var(--text-4)}
+.wtr-dev-chip.online .led{background:var(--success);box-shadow:0 0 7px var(--success)}
+.wtr-dev-chip.offline{opacity:.6}
+.wtr-dev-chip b{color:var(--text-1)}
+
+/* SUMMARY */
+.wtr-sys-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:18px}
+.wtr-sys-card{background:var(--card-bg);border:1px solid var(--card-border);border-radius:12px;padding:13px 15px}
+.wtr-sys-label{font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:1px}
+.wtr-sys-value{font-size:22px;font-weight:800;color:var(--text-1);letter-spacing:-0.5px;margin-top:5px;font-variant-numeric:tabular-nums}
+.wtr-sys-value .u{font-size:12px;color:var(--text-3);font-weight:600;margin-left:4px}
+.wtr-sys-foot{font-size:10px;color:var(--text-3);margin-top:4px}
+
+/* SECTIONS */
+.wtr-section{margin-top:22px}
+.wtr-section-hdr{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.wtr-section-title{font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:1.5px}
+.wtr-panel{background:var(--card-bg);border:1px solid var(--card-border);border-radius:12px;padding:14px 16px}
+.wtr-schematic{background:rgba(0,0,0,.18);border:1px solid var(--card-border);border-radius:14px;padding:8px}
+.wtr-schematic-svg{width:100%;height:auto;display:block}
+.wtr-flow-pipe{stroke:rgba(148,163,184,.25);stroke-width:6;fill:none;stroke-linecap:round}
+.wtr-flow-pipe.active{stroke:var(--get220v-accent);stroke-dasharray:10 8;animation:wtrFlow 0.9s linear infinite}
+.wtr-flow-pipe.rain.active{stroke:var(--rain)}
+.wtr-flow-pipe.irr.active{stroke:var(--soil)}
+@keyframes wtrFlow{to{stroke-dashoffset:-18}}
+.wtr-spin{transform-box:fill-box;transform-origin:center;animation:wtrSpin 1.1s linear infinite}
+@keyframes wtrSpin{to{transform:rotate(360deg)}}
+
+.wtr-2col{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.wtr-3col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+
+/* TANKS */
+.wtr-tank-card{position:relative;background:var(--card-bg);border:1px solid var(--card-border);border-radius:14px;padding:14px;display:flex;flex-direction:column;align-items:center}
+.wtr-tank-card .cap{font-size:11px;font-weight:700;color:var(--text-2);margin-bottom:8px;align-self:flex-start;display:flex;align-items:center;gap:7px}
+.wtr-tank-card .cap .led{width:8px;height:8px;border-radius:50%;background:var(--text-4)}
+.wtr-tank-card.lvl-ok .cap .led{background:var(--success);box-shadow:0 0 7px var(--success)}
+.wtr-tank-card.lvl-warn .cap .led{background:var(--warning);box-shadow:0 0 7px var(--warning)}
+.wtr-tank-card.lvl-low .cap .led{background:var(--danger);box-shadow:0 0 7px var(--danger)}
+.wtr-tank-card.lvl-err .cap .led{background:var(--danger);animation:wtrBlink 1s infinite}
+.wtr-tank-card.lvl-err{border-color:rgba(239,68,68,.35)}
+.wtr-tank-svg{width:100%;max-width:170px;height:auto}
+.wtr-tank-meta{display:flex;justify-content:space-between;width:100%;margin-top:10px;gap:8px}
+.wtr-tank-meta .m{text-align:center;flex:1}
+.wtr-tank-meta .m .v{font-size:14px;font-weight:700;color:var(--text-1);font-variant-numeric:tabular-nums}
+.wtr-tank-meta .m .l{font-size:9px;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+.wtr-tank-readout{position:absolute;top:42px;left:50%;transform:translateX(-50%);text-align:center;pointer-events:none}
+.wtr-tank-pct{font-size:26px;font-weight:800;color:var(--text-1);letter-spacing:-1px;line-height:1;font-variant-numeric:tabular-nums}
+.wtr-tank-pct .u{font-size:13px;color:var(--text-3);margin-left:3px;font-weight:600}
+.wtr-tank-err{display:none;margin-top:8px;font-size:10px;font-weight:700;color:var(--danger);background:var(--danger-soft);padding:3px 8px;border-radius:6px}
+.wtr-tank-card.lvl-err .wtr-tank-err{display:block}
+
+.wtr-tank-card.lvl-err .wtr-tank-pct .u{display:none}
+.wtr-tank-card.lvl-err .wtr-tank-pct{font-size:20px;color:var(--danger)}
+
+/* BALANCE */
+.wtr-balance{display:flex;flex-direction:column;justify-content:center;gap:8px}
+.wtr-balance-state{display:inline-flex;align-items:center;gap:9px;padding:9px 14px;border-radius:10px;font-weight:700;font-size:13px}
+.wtr-balance-state.ok{background:var(--success-soft);color:var(--success);border:1px solid rgba(16,185,129,.3)}
+.wtr-balance-state.bad{background:var(--danger-soft);color:var(--danger);border:1px solid rgba(239,68,68,.35)}
+.wtr-balance-state .ic{font-size:18px}
+.wtr-balance-bar{height:10px;border-radius:5px;background:rgba(0,0,0,.3);overflow:hidden;margin-top:4px;position:relative}
+.wtr-balance-bar .center{position:absolute;left:50%;top:0;bottom:0;width:1px;background:rgba(148,163,184,.4)}
+.wtr-balance-bar .fill{height:100%;border-radius:5px;background:linear-gradient(90deg,var(--warning),var(--danger));transition:width .4s}
+.wtr-balance-note{font-size:11px;color:var(--text-3);line-height:1.5}
+
+/* KPI */
+.wtr-kpi-card{background:var(--card-bg);border:1px solid var(--card-border);border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;justify-content:space-between;min-height:118px}
+.wtr-kpi-card.cyan{background:linear-gradient(135deg,rgba(6,182,212,0.08),rgba(255,255,255,0.035));border-color:rgba(6,182,212,0.2)}
+.wtr-kpi-card.violet{background:linear-gradient(135deg,rgba(167,139,250,0.08),rgba(255,255,255,0.035));border-color:rgba(167,139,250,0.2)}
+.wtr-kpi-card.gold{background:linear-gradient(135deg,rgba(245,158,11,0.06),rgba(255,255,255,0.035));border-color:rgba(245,158,11,0.18)}
+.wtr-kpi-card.rain{background:linear-gradient(135deg,rgba(45,212,191,0.09),rgba(255,255,255,0.035));border-color:rgba(45,212,191,0.25)}
+.wtr-kpi-label{font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:1.2px}
+.wtr-kpi-value{font-size:28px;font-weight:800;color:var(--text-1);letter-spacing:-1px;line-height:1.1;margin-top:6px;font-variant-numeric:tabular-nums}
+.wtr-kpi-unit{font-size:14px;color:var(--text-3);font-weight:600;margin-left:5px}
+.wtr-kpi-foot{font-size:11px;color:var(--text-3);margin-top:8px}
+.wtr-kpi-bar{height:8px;background:rgba(0,0,0,0.3);border-radius:4px;margin-top:10px;overflow:hidden}
+.wtr-kpi-bar-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--water-1),var(--water-3));transition:width 0.5s ease}
+.wtr-kpi-bar-fill.violet{background:linear-gradient(90deg,#a78bfa,#7c3aed)}
+.wtr-kpi-bar-fill.rain{background:linear-gradient(90deg,#2dd4bf,#0f766e)}
+.wtr-kpi-bar-fill.warn{background:linear-gradient(90deg,var(--warning),#d97706)}
+.wtr-kpi-bar-fill.danger{background:linear-gradient(90deg,var(--danger),#dc2626)}
+.wtr-tag{display:inline-block;padding:3px 8px;border-radius:6px;font-size:10px;font-weight:700;letter-spacing:0.5px;margin-top:6px}
+.wtr-tag.success{background:var(--success-soft);color:var(--success)}
+.wtr-tag.warning{background:var(--warning-soft);color:var(--warning)}
+.wtr-tag.danger{background:var(--danger-soft);color:var(--danger)}
+.wtr-tag.neutral{background:rgba(148,163,184,.12);color:var(--text-3)}
+
+/* PUMP */
+.wtr-pump-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.wtr-pump-card{background:var(--card-bg);border:1px solid var(--card-border);border-radius:12px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;transition:all 0.3s}
+.wtr-pump-card.on{background:linear-gradient(135deg,rgba(16,185,129,0.12),rgba(255,255,255,0.035));border-color:rgba(16,185,129,0.35);box-shadow:0 0 18px rgba(16,185,129,0.12)}
+.wtr-pump-l{display:flex;align-items:center;gap:11px;min-width:0;flex:1}
+.wtr-pump-led{width:14px;height:14px;border-radius:50%;background:#475569;flex-shrink:0;transition:all 0.3s}
+.wtr-pump-card.on .wtr-pump-led{background:var(--success);box-shadow:0 0 12px var(--success);animation:wtrBlink 1.5s ease-in-out infinite}
+.wtr-pump-name{font-size:13px;font-weight:700;color:var(--text-1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wtr-pump-sub{font-size:10px;color:var(--text-3);margin-top:2px}
+.wtr-pump-r{text-align:right;flex-shrink:0}
+.wtr-pump-r .s{font-size:14px;font-weight:700;color:var(--text-1);font-variant-numeric:tabular-nums}
+.wtr-pump-r .l{font-size:9px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.5px;margin-top:2px}
+
+/* IRRIGATION ZONES */
+.wtr-zone{background:var(--card-bg);border:1px solid var(--card-border);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;transition:all .3s}
+.wtr-zone.on{background:linear-gradient(135deg,rgba(52,211,153,0.12),rgba(255,255,255,0.035));border-color:rgba(52,211,153,0.4);box-shadow:0 0 18px rgba(52,211,153,0.12)}
+.wtr-zone.off-line{opacity:.65}
+.zn-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.zn-name{font-size:13px;font-weight:700;color:var(--text-1)}
+.zn-dev{font-size:10px;color:var(--text-3);margin-top:2px}
+.zn-valve{display:inline-flex;align-items:center;gap:7px;padding:5px 10px;border-radius:999px;font-size:10px;font-weight:700;background:rgba(148,163,184,.12);color:var(--text-3);white-space:nowrap}
+.zn-valve .led{width:9px;height:9px;border-radius:50%;background:#475569}
+.wtr-zone.on .zn-valve{background:var(--success-soft);color:var(--success)}
+.wtr-zone.on .zn-valve .led{background:var(--success);box-shadow:0 0 10px var(--success);animation:wtrBlink 1.2s infinite}
+.zn-main{display:flex;align-items:baseline;gap:6px}
+.zn-pct{font-size:30px;font-weight:800;color:var(--text-1);letter-spacing:-1px;font-variant-numeric:tabular-nums;line-height:1}
+.zn-pct .u{font-size:14px;color:var(--text-3);font-weight:600;margin-left:2px}
+.zn-bar{position:relative;height:10px;border-radius:5px;background:rgba(0,0,0,.3);overflow:visible}
+.zn-bar .fill{height:100%;border-radius:5px;transition:width .5s}
+.zn-bar .fill.ok{background:linear-gradient(90deg,#10b981,#34d399)}
+.zn-bar .fill.dry{background:linear-gradient(90deg,#d97706,#f59e0b)}
+.zn-bar .fill.wet{background:linear-gradient(90deg,#0891b2,#60a5fa)}
+.zn-bar .fill.err{background:#475569}
+.zn-bar .mk{position:absolute;top:-3px;bottom:-3px;width:2px;background:rgba(241,245,249,.55);border-radius:1px}
+.zn-sensors{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.zn-s{background:rgba(0,0,0,.18);border:1px solid var(--card-border);border-radius:8px;padding:7px 10px}
+.zn-s .l{font-size:9px;color:var(--text-3);text-transform:uppercase;letter-spacing:.6px;font-weight:600}
+.zn-s .v{font-size:14px;font-weight:700;color:var(--text-1);font-variant-numeric:tabular-nums}
+.zn-s .v.bad{color:var(--danger)}
+.zn-decision{font-size:11px;color:var(--text-2);line-height:1.45;min-height:32px}
+.zn-foot{display:flex;justify-content:space-between;gap:8px;font-size:10px;color:var(--text-3);border-top:1px solid rgba(255,255,255,.04);padding-top:8px}
+.zn-foot b{color:var(--text-1)}
+
+
+/* TABS / VIEW */
+.wtr-tabs{display:flex;gap:6px;margin-top:14px;overflow-x:auto;padding-bottom:2px}
+.wtr-tab{padding:7px 14px;border-radius:999px;background:rgba(255,255,255,.04);border:1px solid var(--card-border);color:var(--text-3);font-size:11px;font-weight:700;white-space:nowrap;transition:all .2s}
+.wtr-tab:hover{color:var(--text-1);background:rgba(255,255,255,.08)}
+.wtr-tab.active{background:linear-gradient(135deg,var(--water-1),var(--water-3));border-color:transparent;color:#04121a}
+.wtr-root[data-nonav="1"] .wtr-tabs{display:none}
+.wtr-root[data-tab="overview"] [data-tabs]:not([data-tabs~="overview"]),
+.wtr-root[data-tab="water"] [data-tabs]:not([data-tabs~="water"]),
+.wtr-root[data-tab="irrigation"] [data-tabs]:not([data-tabs~="irrigation"]),
+.wtr-root[data-tab="analytics"] [data-tabs]:not([data-tabs~="analytics"]),
+.wtr-root[data-tab="events"] [data-tabs]:not([data-tabs~="events"]){display:none}
+
+/* RAIN FX */
+.wtr-rain-fx{position:absolute;inset:0;border-radius:14px;overflow:hidden;pointer-events:none;opacity:0;transition:opacity .6s}
+.wtr-tank-card.collecting .wtr-rain-fx{opacity:1}
+.wtr-tank-card.collecting{border-color:rgba(45,212,191,.4);box-shadow:0 0 22px rgba(45,212,191,.12)}
+.wtr-rain-fx::before,.wtr-rain-fx::after{content:'';position:absolute;top:-30%;left:0;right:0;height:130%;
+  background-image:linear-gradient(transparent 0 70%,rgba(45,212,191,.55) 70% 100%);
+  background-size:2px 18px;background-repeat:repeat;
+  -webkit-mask-image:repeating-linear-gradient(90deg,#000 0 2px,transparent 2px 17px);mask-image:repeating-linear-gradient(90deg,#000 0 2px,transparent 2px 17px);
+  animation:wtrRain .8s linear infinite}
+.wtr-rain-fx::after{left:8px;opacity:.5;animation-duration:1.1s}
+@keyframes wtrRain{to{transform:translateY(18px)}}
+
+/* ZONE v2 */
+.zn-body{display:flex;gap:14px;align-items:center}
+.zn-gauge{position:relative;width:118px;height:118px;flex-shrink:0}
+.zn-gauge svg{width:100%;height:100%;display:block}
+.zn-gauge .ring-pulse{position:absolute;inset:-4px;border-radius:50%;border:2px solid var(--success);opacity:0;pointer-events:none}
+.wtr-zone.on .zn-gauge .ring-pulse{animation:znPulse 1.6s ease-out infinite}
+@keyframes znPulse{0%{transform:scale(.92);opacity:.7}100%{transform:scale(1.12);opacity:0}}
+.zn-gauge .ctr{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
+.zn-gauge .ctr .p{font-size:26px;font-weight:800;color:var(--text-1);letter-spacing:-1px;line-height:1;font-variant-numeric:tabular-nums}
+.zn-gauge .ctr .p small{font-size:12px;color:var(--text-3);font-weight:600}
+.zn-gauge .ctr .t{font-size:9px;color:var(--text-3);letter-spacing:1px;margin-top:3px;font-weight:700}
+.zn-side{flex:1;display:flex;flex-direction:column;gap:8px;min-width:0}
+.zn-spark{width:100%;height:34px;display:block}
+.zn-drops{display:none;gap:3px;font-size:12px}
+.wtr-zone.on .zn-drops{display:flex}
+.zn-drops span{animation:znDrop 1s ease-in infinite}
+.zn-drops span:nth-child(2){animation-delay:.2s}.zn-drops span:nth-child(3){animation-delay:.4s}
+@keyframes znDrop{0%{transform:translateY(-4px);opacity:0}50%{opacity:1}100%{transform:translateY(5px);opacity:0}}
+.zn-ctl{display:flex;flex-direction:column;gap:7px;border-top:1px solid rgba(255,255,255,.05);padding-top:9px}
+.zn-seg{display:inline-flex;border:1px solid var(--card-border);border-radius:8px;overflow:hidden}
+.zn-seg button{padding:5px 11px;font-size:10px;font-weight:700;color:var(--text-3);background:rgba(255,255,255,.03)}
+.zn-seg button.act{background:var(--water-1);color:#04121a}
+.zn-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.zn-btn{padding:5px 10px;border-radius:7px;font-size:10px;font-weight:700;background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.35);color:var(--soil)}
+.zn-btn:hover{background:rgba(52,211,153,.25)}
+.zn-btn.stop{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.35);color:var(--danger)}
+.zn-btn.ghost{background:rgba(255,255,255,.04);border-color:var(--card-border);color:var(--text-3)}
+.zn-ctl.disabled .zn-btn,.zn-ctl.disabled .zn-seg{opacity:.4;pointer-events:none}
+.zn-set{display:none;gap:8px;align-items:flex-end;flex-wrap:wrap;background:rgba(0,0,0,.18);border:1px solid var(--card-border);border-radius:8px;padding:8px 10px}
+.zn-set.open{display:flex}
+.zn-set label{font-size:9px;color:var(--text-3);text-transform:uppercase;letter-spacing:.6px;display:block;margin-bottom:2px}
+.zn-set input{width:64px;padding:5px 7px;background:rgba(0,0,0,.35);border:1px solid var(--card-border);border-radius:6px;color:var(--text-1);font-size:12px;font-family:inherit;outline:none}
+.zn-timer{font-size:10px;color:var(--success);font-weight:700}
+@media (max-width:600px){.zn-body{flex-direction:column;align-items:stretch}.zn-gauge{align-self:center}}
+
+
+/* UX v4.1 */
+.wtr-tabs{position:sticky;top:-21px;z-index:30;margin:14px -22px 0;padding:10px 22px 8px;background:linear-gradient(180deg,rgba(6,11,26,.96),rgba(6,11,26,.88));backdrop-filter:blur(8px);border-bottom:1px solid var(--card-border)}
+.wtr-trend{margin-left:auto;font-size:10px;font-weight:700;color:var(--text-3);white-space:nowrap}
+.wtr-trend.up{color:var(--success)}.wtr-trend.down{color:var(--warning)}
+.wtr-alerts{margin-top:14px;display:flex;flex-direction:column;gap:6px}
+.wtr-alerts-hd{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.5px}
+.wtr-pill{padding:3px 9px;border-radius:999px;font-size:10px;font-weight:800}
+.wtr-pill.danger{background:var(--danger-soft);color:var(--danger)}.wtr-pill.warn{background:var(--warning-soft);color:var(--warning)}.wtr-pill.info{background:rgba(96,165,250,.15);color:#60a5fa}
+.wtr-alert{display:flex;align-items:center;gap:10px;text-align:left;width:100%;padding:9px 12px;border-radius:10px;border:1px solid var(--card-border);background:var(--card-bg);font-size:12px;color:var(--text-2);transition:transform .15s,background .15s}
+.wtr-alert:hover{transform:translateX(2px);background:rgba(255,255,255,.06)}
+.wtr-alert.danger{border-color:rgba(239,68,68,.4);background:linear-gradient(90deg,rgba(239,68,68,.12),var(--card-bg))}
+.wtr-alert.warn{border-color:rgba(245,158,11,.35);background:linear-gradient(90deg,rgba(245,158,11,.10),var(--card-bg))}
+.wtr-alert.info{border-color:rgba(96,165,250,.3);background:linear-gradient(90deg,rgba(96,165,250,.08),var(--card-bg))}
+.wtr-alert .tx{flex:1;min-width:0}.wtr-alert .go{color:var(--text-4);font-size:11px;white-space:nowrap}
+.wtr-alerts-ok{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:10px;background:var(--success-soft);border:1px solid rgba(16,185,129,.3);color:var(--success);font-size:12px;font-weight:700}
+.wtr-more{align-self:flex-start;font-size:11px;color:var(--get220v-accent);font-weight:700;padding:2px 4px}
+.wtr-chartbox{position:relative}
+.wtr-xline{position:absolute;top:0;bottom:0;width:1px;background:rgba(241,245,249,.35);pointer-events:none;display:none}
+.wtr-tip{position:absolute;top:8px;display:none;min-width:150px;max-width:260px;padding:8px 10px;border-radius:8px;background:rgba(15,23,42,.96);border:1px solid var(--card-border);font-size:11px;color:var(--text-2);pointer-events:none;z-index:5;box-shadow:0 6px 20px rgba(0,0,0,.4)}
+.wtr-tip .t{font-weight:700;color:var(--text-1);margin-bottom:4px}.wtr-tip .r{display:flex;align-items:center;gap:6px;justify-content:space-between}
+.wtr-tip .r i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px}
+.wtr-tip .r b{color:var(--text-1);font-variant-numeric:tabular-nums}
+[data-goto]{cursor:pointer}
+.zn-pending{font-size:10px;font-weight:700;color:var(--warning);background:var(--warning-soft);padding:3px 8px;border-radius:999px;animation:wtrBlink 1s infinite}
+.zn-trend{font-size:10px;color:var(--text-3);line-height:1.4}
+.wtr-zone.pending .zn-ctl{opacity:.55;pointer-events:none}
+@media (max-width:600px){.wtr-tabs{margin:14px -12px 0;padding:8px 12px 6px;top:-15px}}
+@media (prefers-reduced-motion:reduce){.wtr-root *,.wtr-root *::before,.wtr-root *::after{animation:none!important;transition:none!important}}
+
+/* LIVE */
+.wtr-live-grid{display:grid;grid-template-columns:repeat(3, 1fr);gap:10px;margin-top:6px}
+.wtr-live-item{background:rgba(0,0,0,0.18);border:1px solid var(--card-border);border-radius:8px;padding:10px 12px;min-width:0;overflow:hidden}
+.wtr-live-label{font-size:9.5px;color:var(--text-3);font-weight:600;letter-spacing:0.8px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wtr-live-value{font-size:15px;font-weight:700;color:var(--text-1);font-variant-numeric:tabular-nums;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wtr-live-value .unit{font-size:10px;color:var(--text-3);font-weight:500;margin-left:3px}
+
+/* TIME RANGE */
+.wtr-presets{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.wtr-preset{padding:6px 12px;background:rgba(255,255,255,0.04);border:1px solid var(--card-border);border-radius:8px;color:var(--text-3);font-size:11px;font-weight:600}
+.wtr-preset:hover{background:rgba(255,255,255,0.08);color:var(--text-1)}
+.wtr-preset.active{background:var(--water-1);border-color:var(--water-1);color:#06121a}
+.wtr-date-inputs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.wtr-date-input{flex:1;min-width:140px}
+.wtr-date-input label{display:block;font-size:10px;color:var(--text-3);margin-bottom:3px;text-transform:uppercase;letter-spacing:0.5px}
+.wtr-date-input input{width:100%;padding:7px 10px;background:rgba(0,0,0,0.3);border:1px solid var(--card-border);border-radius:6px;color:var(--text-1);font-size:11px;font-family:inherit;outline:none}
+.wtr-stat-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.03);gap:10px;min-width:0}
+.wtr-stat-row:last-child{border-bottom:none}
+.wtr-stat-label{font-size:11px;color:var(--text-3);font-weight:600;letter-spacing:0.5px;flex-shrink:0}
+.wtr-stat-val{font-size:13px;font-weight:700;color:var(--text-1);font-variant-numeric:tabular-nums;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* CHART */
+.wtr-chart-svg{width:100%;height:280px;background:rgba(0,0,0,0.2);border-radius:8px;display:block}
+.wtr-chart-svg.irr{height:300px}
+.wtr-chart-empty{height:280px;display:flex;align-items:center;justify-content:center;color:var(--text-4);font-size:12px;font-style:italic;background:rgba(0,0,0,0.2);border-radius:8px;padding:20px;text-align:center}
+.wtr-chart-legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px;font-size:11px;color:var(--text-3)}
+.wtr-chart-legend .item{display:flex;align-items:center;gap:6px}
+.wtr-chart-legend .dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+
+/* EVENTS */
+.wtr-event-item{display:grid;grid-template-columns:1fr 130px 90px;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.03);font-size:11px;color:var(--text-2);align-items:center}
+.wtr-event-item:last-child{border-bottom:none}
+.wtr-event-time{color:var(--text-3);font-family:monospace;font-size:10px}
+.wtr-event-type{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wtr-event-type.bad{color:var(--danger)}.wtr-event-type.warn{color:var(--warning)}
+.wtr-event-type.on{color:var(--success)}.wtr-event-type.off{color:var(--text-3)}
+.wtr-event-type.rain{color:var(--rain)}
+.wtr-event-badge{text-align:right;font-size:10px;font-weight:700;letter-spacing:.5px}
+.wtr-event-empty{padding:14px;text-align:center;color:var(--text-4);font-size:11px;font-style:italic}
+
+/* EXPORT / TOAST */
+.wtr-export{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;padding-top:10px}
+.wtr-export-btn{padding:8px 14px;background:rgba(255,255,255,0.04);border:1px solid var(--card-border);border-radius:8px;color:var(--text-2);font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:6px}
+.wtr-export-btn:hover{background:rgba(6,182,212,0.1);border-color:var(--water-1);color:var(--water-1)}
+.wtr-toast-wrap{position:fixed;bottom:20px;right:20px;display:flex;flex-direction:column;gap:8px;z-index:9999;pointer-events:none}
+.wtr-toast{background:rgba(15,23,42,0.95);border-left:3px solid var(--water-1);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--text-1);pointer-events:auto;min-width:200px;animation:wtrToastIn .25s ease}
+.wtr-toast.error{border-left-color:var(--danger)}
+.wtr-toast.success{border-left-color:var(--success)}
+@keyframes wtrToastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1}}
+
+@media (max-width:900px){
+  .wtr-2col,.wtr-3col{grid-template-columns:1fr}
+  .wtr-live-grid{grid-template-columns:repeat(2,1fr)}
+}
+@media (max-width:600px){
+  .wtr-root{padding:14px 12px;font-size:12px}
+  .wtr-hdr-title{font-size:16px}
+  .wtr-sys-value{font-size:18px}
+  .wtr-kpi-value{font-size:22px}
+  .wtr-pump-grid{grid-template-columns:1fr}
+  .wtr-event-item{grid-template-columns:1fr 90px;gap:8px}
+  .wtr-event-badge{display:none}
+}
+@media (max-width:480px){ .wtr-live-grid{grid-template-columns:1fr 1fr;gap:6px} }
+@media print{.wtr-root{background:#fff!important;color:#000!important;height:auto!important;overflow:visible!important}.wtr-export{display:none}.wtr-root *,.wtr-root *::before,.wtr-root *::after{color:#000!important;background:#fff!important;border-color:#999!important}}
+
+/* =====================================================================
+   v5 REDESIGN : sidebar + bento + theme + new visuals
+   ===================================================================== */
+.wtr-root{--inset:rgba(0,0,0,.24);--glass:rgba(255,255,255,.05);--ring:rgba(148,163,184,.16);--shadow:0 14px 34px -20px rgba(0,0,0,.75);
+  padding:0!important;overflow:hidden!important;container-type:inline-size;container-name:wtr}
+.wtr-root[data-theme="light"]{--bg-1:#eef3f9;--bg-2:#dfe9f5;--card-bg:rgba(255,255,255,.82);--card-border:rgba(15,23,42,.09);
+  --text-1:#0b1220;--text-2:#273449;--text-3:#5b6b82;--text-4:#8a98ad;--inset:rgba(15,23,42,.05);--glass:rgba(15,23,42,.04);--ring:rgba(15,23,42,.10);--shadow:0 14px 30px -22px rgba(15,23,42,.35);
+  --success-soft:rgba(16,185,129,.14);--warning-soft:rgba(245,158,11,.16);--danger-soft:rgba(239,68,68,.12);
+  background:radial-gradient(900px 480px at 0% 0%,rgba(6,182,212,.14),transparent),linear-gradient(180deg,var(--bg-1),var(--bg-2))}
+.wtr-shell{display:grid;grid-template-columns:232px minmax(0,1fr);height:100%;min-height:0}
+.nv{display:flex;flex-direction:column;gap:18px;padding:18px 14px;border-right:1px solid var(--card-border);background:linear-gradient(180deg,var(--glass),transparent);overflow-y:auto;min-height:0}
+.nv-brand{display:flex;gap:10px;align-items:center}
+.nv-title{font-size:13px;font-weight:800;color:var(--text-1);line-height:1.2}
+.nv-nav{display:flex;flex-direction:column;gap:4px}
+.nv-btn{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:11px;color:var(--text-3);font-size:12px;font-weight:700;text-align:left;transition:background .2s,color .2s}
+.nv-btn .ic{font-size:16px;width:20px;text-align:center}
+.nv-btn:hover{background:var(--glass);color:var(--text-1)}
+.nv-btn.active{background:linear-gradient(135deg,rgba(6,182,212,.24),rgba(6,182,212,.05));color:var(--text-1);box-shadow:inset 3px 0 0 var(--water-1)}
+.nv-btn .bdg{margin-left:auto;min-width:18px;height:18px;border-radius:9px;font-size:10px;font-weight:800;display:none;align-items:center;justify-content:center;background:var(--warning);color:#1a1100;padding:0 5px}
+.nv-btn .bdg.on{display:inline-flex}.nv-btn .bdg.danger{background:var(--danger);color:#fff}
+.nv-devs{margin-top:auto;display:flex;flex-direction:column;gap:2px}
+.nv-devs-t{font-size:9px;font-weight:800;color:var(--text-4);letter-spacing:1.4px;text-transform:uppercase;margin-bottom:4px}
+.nv-devs .wtr-dev-chip{border:none;background:transparent;padding:3px 2px;font-size:11px;justify-content:flex-start}
+.nv-foot{display:flex;gap:8px}
+.nv-theme{flex:1;padding:8px 10px;border-radius:10px;background:var(--glass);border:1px solid var(--card-border);color:var(--text-2);font-size:11px;font-weight:700}
+.nv-theme:hover{border-color:var(--water-1);color:var(--water-1)}
+.mn{overflow-y:auto;overflow-x:hidden;padding:20px 24px 28px;min-width:0;min-height:0}
+.mn::-webkit-scrollbar{width:10px}.mn::-webkit-scrollbar-thumb{background:rgba(148,163,184,.25);border-radius:5px}
+.tb{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.tb-title{font-size:24px;font-weight:800;color:var(--text-1);letter-spacing:-.6px;line-height:1.1}
+.tb-r{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.wtr-root[data-nonav="1"] .wtr-shell{grid-template-columns:minmax(0,1fr)}
+.wtr-root[data-nonav="1"] .nv{display:none}
+
+.bento{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px;margin-top:16px}
+.b-3{grid-column:span 3}.b-4{grid-column:span 4}.b-5{grid-column:span 5}.b-7{grid-column:span 7}.b-8{grid-column:span 8}.b-12{grid-column:span 12}
+.card{position:relative;overflow:hidden;background:var(--card-bg);border:1px solid var(--card-border);border-radius:18px;padding:16px 18px;box-shadow:var(--shadow);backdrop-filter:blur(6px)}
+.card-t{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px;font-weight:800;color:var(--text-3);letter-spacing:1.4px;text-transform:uppercase;margin-bottom:10px}
+.card-t .hint{font-size:10px;font-weight:600;letter-spacing:.3px;text-transform:none;color:var(--text-4)}
+
+/* KPI with sparkline */
+.kx{--acc:var(--water-1);padding-top:18px}
+.kx::before{content:'';position:absolute;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,var(--acc),transparent)}
+.kx.violet{--acc:#a78bfa}.kx.rain{--acc:var(--rain)}.kx.green{--acc:var(--soil)}.kx.amber{--acc:var(--warning)}
+.kx-l{font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.8px;text-transform:uppercase}
+.kx-v{font-size:34px;font-weight:800;letter-spacing:-1.5px;color:var(--text-1);line-height:1.1;margin-top:6px;font-variant-numeric:tabular-nums}
+.kx-v .u{font-size:13px;color:var(--text-3);font-weight:600;margin-left:4px;letter-spacing:0}
+.kx-f{font-size:11px;color:var(--text-3);margin-top:4px}
+.spark{width:100%;height:44px;display:block;margin-top:8px}
+
+/* HERO rings */
+.hero-body{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.hero-ring{position:relative;width:190px;height:190px;flex-shrink:0;margin:0 auto}
+.hero-ring svg{width:100%;height:100%;display:block}
+.hero-c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
+.hero-c .hv{font-size:19px;font-weight:800;color:var(--text-1);letter-spacing:-1px;font-variant-numeric:tabular-nums}
+.hero-c .hl{font-size:9px;color:var(--text-3);letter-spacing:1.2px;font-weight:700;text-transform:uppercase}
+.hero-leg{flex:1;min-width:180px;display:flex;flex-direction:column;gap:9px}
+.lg{display:grid;grid-template-columns:10px 1fr auto;gap:2px 10px;align-items:center;padding:9px 11px;border-radius:12px;background:var(--glass);border:1px solid var(--card-border)}
+.lg i{width:10px;height:10px;border-radius:50%;grid-row:span 2}
+.lg .n{font-size:12px;font-weight:800;color:var(--text-1)}.lg .n small{font-weight:600;color:var(--text-3);margin-left:6px}
+.lg .p{font-size:16px;font-weight:800;color:var(--text-1);text-align:right;font-variant-numeric:tabular-nums}
+.lg .v{font-size:10px;color:var(--text-3)}
+.lg .t{font-size:10px;font-weight:700;color:var(--text-3)}
+.lg .meta{grid-column:2 / span 2;display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.lg .n{white-space:nowrap}
+.kgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-content:stretch}
+.lg .t.up{color:var(--success)}.lg .t.down{color:var(--warning)}.lg .p.err{color:var(--danger)}
+
+/* ARC gauge cards (water tab) */
+.kp{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.arc{width:128px;flex-shrink:0}
+.arc svg{width:100%;height:auto;display:block}
+.arc-v{fill:var(--text-1);font-size:17px;font-weight:800;font-family:inherit}
+.arc-u{fill:var(--text-3);font-size:8px;font-weight:700;font-family:inherit}
+.arc-m{fill:var(--text-4);font-size:7.5px;font-family:inherit}
+
+/* GARDEN MAP */
+.garden-svg{width:100%;height:auto;display:block;border-radius:12px}
+.wtr-spray{transform-box:fill-box;transform-origin:center;animation:wtrSpray 1.6s ease-out infinite}
+@keyframes wtrSpray{0%{transform:scale(.25);opacity:.85}100%{transform:scale(1.7);opacity:0}}
+.wtr-rip{transform-box:fill-box;transform-origin:center;animation:wtrRip 3.2s ease-out infinite}
+@keyframes wtrRip{0%{transform:scale(.3);opacity:.7}100%{transform:scale(1);opacity:0}}
+.wtr-bub{animation:wtrBub 4.5s linear infinite;opacity:0}
+@keyframes wtrBub{0%{transform:translateY(0);opacity:0}15%{opacity:.7}100%{transform:translateY(-70px);opacity:0}}
+.wtr-pulse{animation:wtrBlink 1.2s infinite}
+
+/* TIMELINE */
+.tl-day{font-size:10px;font-weight:800;color:var(--text-4);letter-spacing:1.4px;text-transform:uppercase;margin:12px 0 4px}
+.tl-day:first-child{margin-top:0}
+.tl-item{position:relative;display:grid;grid-template-columns:16px 1fr auto auto;gap:10px;align-items:center;padding:7px 0;font-size:12px}
+.tl-item::before{content:'';position:absolute;left:5px;top:0;bottom:0;width:2px;background:var(--ring)}
+.tl-dot{width:12px;height:12px;border-radius:50%;background:var(--text-4);border:2px solid var(--bg-2);z-index:1}
+.tl-dot.on{background:var(--success)}.tl-dot.bad{background:var(--danger)}.tl-dot.warn{background:var(--warning)}.tl-dot.rain{background:var(--rain)}
+.tl-tx{font-weight:700;color:var(--text-1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl-tm{font-family:ui-monospace,Menlo,monospace;font-size:10px;color:var(--text-3)}
+.tl-bd{font-size:9px;font-weight:800;letter-spacing:.6px;padding:2px 7px;border-radius:6px;background:var(--glass)}
+
+/* THEME-AWARE overrides for legacy rules */
+.wtr-live-item,.zn-s,.zn-set,.wtr-kpi-bar,.wtr-chart-svg,.wtr-chart-empty,.wtr-balance-bar,.wtr-date-input input{background:var(--inset)!important}
+.wtr-root[data-theme="light"] .wtr-date-input input{color:var(--text-1)}
+.wtr-root[data-theme="light"] .zn-set input{background:#fff;color:var(--text-1)}
+.wtr-root[data-theme="light"] .wtr-tip,.wtr-root[data-theme="light"] .wtr-toast{background:rgba(255,255,255,.97);color:var(--text-1)}
+.wtr-root[data-theme="light"] .wtr-schematic{background:rgba(255,255,255,.55)}
+.wtr-schematic{background:var(--inset)}
+.wtr-root[data-theme="light"] svg text[fill="#cbd5e1"],.wtr-root[data-theme="light"] svg text[fill="#94a3b8"]{fill:var(--text-2)}
+.wtr-root[data-theme="light"] svg text[fill="#64748b"],.wtr-root[data-theme="light"] svg text[fill="#475569"]{fill:var(--text-3)}
+.wtr-root svg [stroke="#0a1a2e"]{stroke:var(--bg-2)}
+.wtr-root[data-theme="light"] .wtr-zone.on,.wtr-root[data-theme="light"] .wtr-pump-card.on{background:linear-gradient(135deg,rgba(16,185,129,.14),var(--card-bg))}
+.wtr-root[data-theme="light"] .wtr-tab.active,.wtr-root[data-theme="light"] .wtr-preset.active{color:#fff}
+.wtr-tank-card,.wtr-zone,.wtr-kpi-card,.wtr-panel{border-radius:18px;box-shadow:var(--shadow)}
+.wtr-tank-svg{max-width:190px}
+.wtr-tank-readout{top:auto;bottom:112px;text-shadow:0 2px 10px rgba(0,0,0,.45)}
+.wtr-root[data-theme="light"] .wtr-tank-readout{text-shadow:0 1px 6px rgba(255,255,255,.8)}
+
+/* RESPONSIVE (container query -> mengikuti lebar widget, bukan layar) */
+@container wtr (max-width:1050px){.b-3{grid-column:span 6}.b-4,.b-5,.b-7,.b-8{grid-column:span 12}.wtr-3col{grid-template-columns:1fr 1fr}}
+@container wtr (max-width:760px){
+  .wtr-shell{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}
+  .nv{order:2;flex-direction:row;padding:6px 8px;border-right:none;border-top:1px solid var(--card-border);overflow-x:auto;gap:6px;background:var(--card-bg)}
+  .nv-brand,.nv-devs,.nv-foot{display:none}
+  .nv-nav{flex-direction:row;flex:1;justify-content:space-around}
+  .nv-btn{flex-direction:column;gap:2px;padding:6px 10px;font-size:9.5px;position:relative}
+  .nv-btn.active{box-shadow:inset 0 3px 0 var(--water-1)}
+  .nv-btn .bdg{position:absolute;top:2px;right:4px;margin:0;min-width:14px;height:14px;font-size:9px}
+  .mn{padding:14px 12px 18px}
+  .tb-title{font-size:19px}
+  .wtr-2col,.wtr-3col{grid-template-columns:1fr}
+  .b-3{grid-column:span 6}
+}
+@container wtr (max-width:480px){.kgrid{grid-template-columns:1fr}.b-3{grid-column:span 12}.kx-v{font-size:28px}.hero-ring{width:170px;height:170px}}
+</style>
+
+<div class="wtr-root" data-wtr-root data-tab="overview" data-theme="dark">
+<div class="wtr-shell">
+
+  <!-- ===== SIDEBAR ===== -->
+  <aside class="nv">
+    <div class="nv-brand">
+      <div class="wtr-logo">💧</div>
+      <div><div class="nv-title" data-bind="systemName">Water System</div><div class="wtr-brand">⚡ SIAGA Nextgen · v5</div></div>
+    </div>
+    <nav class="nv-nav" data-tabs-nav role="tablist" aria-label="Dashboard sections">
+      <button class="nv-btn active" data-tab-btn="overview" data-title="Overview"><span class="ic">🗺️</span><span class="lb">Overview</span></button>
+      <button class="nv-btn" data-tab-btn="water" data-title="Water System"><span class="ic">💧</span><span class="lb">Water</span><span class="bdg" data-badge="water"></span></button>
+      <button class="nv-btn" data-tab-btn="irrigation" data-title="Smart Irrigation"><span class="ic">🌱</span><span class="lb">Irrigation</span><span class="bdg" data-badge="irrigation"></span></button>
+      <button class="nv-btn" data-tab-btn="analytics" data-title="Analytics"><span class="ic">📈</span><span class="lb">Analytics</span></button>
+      <button class="nv-btn" data-tab-btn="events" data-title="Events"><span class="ic">🚨</span><span class="lb">Events</span></button>
+    </nav>
+    <div class="nv-devs">
+      <div class="nv-devs-t">Devices</div>
+      <div class="wtr-dev-chip" data-dev-chip="gwt"><span class="led"></span>GWT <b data-bind="chipGwt">--</b></div>
+      <div class="wtr-dev-chip" data-dev-chip="flow"><span class="led"></span>Transfer <b data-bind="chipFlow">--</b></div>
+      <div class="wtr-dev-chip" data-dev-chip="roof"><span class="led"></span>Roof <b data-bind="chipRoof">--</b></div>
+      <div class="wtr-dev-chip" data-dev-chip="irrG"><span class="led"></span>Garden Lt.1 <b data-bind="chipIrrG">--</b></div>
+      <div class="wtr-dev-chip" data-dev-chip="irrR"><span class="led"></span>Garden Roof <b data-bind="chipIrrR">--</b></div>
+    </div>
+    <div class="nv-foot"><button class="nv-theme" data-theme-toggle title="Ganti tema terang / gelap">☀️ Tema terang</button></div>
+  </aside>
+
+  <!-- ===== MAIN ===== -->
+  <main class="mn" data-main>
+    <header class="tb">
+      <div>
+        <div class="tb-title" data-bind="pageTitle">Overview</div>
+        <div class="wtr-hdr-sub" data-bind="systemSub">Rain → GWT → Transfer → Roof · Smart Irrigation</div>
+      </div>
+      <div class="tb-r">
+        <div class="wtr-status" data-bind="status">● LIVE</div>
+        <div class="wtr-chip" data-age-chip>⏱ <span data-bind="updated">--:--:--</span> <span data-bind="age" style="opacity:.7"></span></div>
+      </div>
+    </header>
+
+    <div class="wtr-alerts" data-alerts aria-live="polite"></div>
+
+    <!-- ================= OVERVIEW ================= -->
+    <div class="bento" data-tabs="overview">
+      <div class="card b-5">
+        <div class="card-t">🪣 Water Inventory <span class="hint">level tiap sumber</span></div>
+        <div class="hero-body">
+          <div class="hero-ring"><div data-hero-ring></div><div class="hero-c"><div class="hv" data-bind="sysStored">--</div><div class="hl">total stored</div></div></div>
+          <div class="hero-leg" data-hero-leg></div>
+        </div>
+        <div class="kx-f" data-bind="sysStoredFoot" style="margin-top:10px">GWT + Roof + Rain</div>
+      </div>
+      <div class="b-7 kgrid">
+      <div class="card kx violet">
+        <div class="kx-l">🔄 Transfer Flow</div>
+        <div class="kx-v"><span data-bind="sysFlow">--</span><span class="u">L/min</span></div>
+        <div class="kx-f"><span data-bind="sysFlowFoot">pump idle</span> · Σ <b data-bind="sysTotalizer">--</b></div>
+        <svg class="spark" data-spark="flow" viewBox="0 0 100 34" preserveAspectRatio="none"></svg>
+      </div>
+      <div class="card kx rain">
+        <div class="kx-l">🌧️ Rain Collected</div>
+        <div class="kx-v"><span data-bind="sysRain">--</span></div>
+        <div class="kx-f" data-bind="sysRainFoot">rain flow totalizer</div>
+        <svg class="spark" data-spark="rain" viewBox="0 0 100 34" preserveAspectRatio="none"></svg>
+      </div>
+      <div class="card kx green">
+        <div class="kx-l">🌱 Irrigation</div>
+        <div class="kx-v"><span data-bind="sysIrrig">--</span><span class="u">zona aktif</span></div>
+        <div class="kx-f" data-bind="sysIrrigFoot">avg soil --</div>
+        <svg class="spark" data-spark="irr" viewBox="0 0 100 34" preserveAspectRatio="none"></svg>
+      </div>
+      <div class="card kx amber">
+        <div class="kx-l">⚖️ GWT Balance</div>
+        <div class="kx-v" style="font-size:24px;margin-top:10px"><span data-bind="sysBalance">--</span></div>
+        <div class="kx-f" data-bind="sysBalanceFoot">T1 vs T2</div>
+        <svg class="spark" data-spark="bal" viewBox="0 0 100 34" preserveAspectRatio="none"></svg>
+      </div>
+      </div>
+
+      <div class="card b-12">
+        <div class="card-t">🗺️ System Flow <span class="hint">klik komponen untuk detail</span></div>
+        <div class="wtr-schematic" style="border:none;padding:0"><svg class="wtr-schematic-svg" viewBox="0 0 1000 360" preserveAspectRatio="xMidYMid meet" data-schematic></svg></div>
+      </div>
+
+      <div class="card b-12" data-garden-section>
+        <div class="card-t">🌿 Garden Map <span class="hint">kelembaban tanah real-time · klik untuk kontrol</span></div>
+        <div data-garden="mini"></div>
+      </div>
+
+      <div class="card b-12">
+        <div class="card-t">📡 Live Readings</div>
+        <div class="wtr-live-grid" style="margin-top:0">
+          <div class="wtr-live-item"><div class="wtr-live-label">GWT T1 / T2</div><div class="wtr-live-value"><span data-bind="liveGwt">--</span></div></div>
+          <div class="wtr-live-item"><div class="wtr-live-label">Transfer Flow</div><div class="wtr-live-value"><span data-bind="liveFlow">--</span><span class="unit">L/min</span></div></div>
+          <div class="wtr-live-item"><div class="wtr-live-label">Roof Level</div><div class="wtr-live-value"><span data-bind="liveRoof">--</span><span class="unit">%</span></div></div>
+          <div class="wtr-live-item"><div class="wtr-live-label">Roof Pressure</div><div class="wtr-live-value"><span data-bind="livePress">--</span><span class="unit">bar</span></div></div>
+          <div class="wtr-live-item"><div class="wtr-live-label">Rain Level / Flow</div><div class="wtr-live-value"><span data-bind="liveRain">--</span></div></div>
+          <div class="wtr-live-item"><div class="wtr-live-label">Soil G1 / G2 / R1</div><div class="wtr-live-value"><span data-bind="liveSoil">--</span></div></div>
+          <div class="wtr-live-item"><div class="wtr-live-label">Signal G/T/R/L1/Rf</div><div class="wtr-live-value"><span data-bind="liveRssi">--</span></div></div>
+          <div class="wtr-live-item"><div class="wtr-live-label">Uptime (min device)</div><div class="wtr-live-value"><span data-bind="liveUptime">--</span></div></div>
+          <div class="wtr-live-item"><div class="wtr-live-label">Free Heap G/L1/Rf</div><div class="wtr-live-value"><span data-bind="liveHeap">--</span></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= WATER ================= -->
+    <div class="wtr-section" data-tabs="water" data-gwt-section>
+      <div class="wtr-section-hdr"><div class="wtr-section-title">🛢️ Ground Water Tank (GWT)</div></div>
+      <div class="wtr-3col">
+        <div class="wtr-tank-card" data-gwt-tank="1">
+          <div class="cap"><span class="led"></span><span data-bind="gwtT1Name">GWT Tank 1</span><span class="wtr-trend" data-trend="gwt1"></span></div>
+          <div class="wtr-tank-readout"><div class="wtr-tank-pct"><span data-bind="gwtT1Pct">--</span><span class="u">%</span></div></div>
+          <svg class="wtr-tank-svg" viewBox="0 0 120 200" data-gwt-svg="1"></svg>
+          <div class="wtr-tank-meta">
+            <div class="m"><div class="v" data-bind="gwtT1Vol">--</div><div class="l">volume</div></div>
+            <div class="m"><div class="v" data-bind="gwtT1Dist">--</div><div class="l">dist cm</div></div>
+          </div>
+          <div class="wtr-tank-err">⚠ SENSOR ERROR (HC-SR04 tidak membaca)</div>
+        </div>
+        <div class="wtr-tank-card" data-gwt-tank="2">
+          <div class="cap"><span class="led"></span><span data-bind="gwtT2Name">GWT Tank 2</span><span class="wtr-trend" data-trend="gwt2"></span></div>
+          <div class="wtr-tank-readout"><div class="wtr-tank-pct"><span data-bind="gwtT2Pct">--</span><span class="u">%</span></div></div>
+          <svg class="wtr-tank-svg" viewBox="0 0 120 200" data-gwt-svg="2"></svg>
+          <div class="wtr-tank-meta">
+            <div class="m"><div class="v" data-bind="gwtT2Vol">--</div><div class="l">volume</div></div>
+            <div class="m"><div class="v" data-bind="gwtT2Dist">--</div><div class="l">dist cm</div></div>
+          </div>
+          <div class="wtr-tank-err">⚠ SENSOR ERROR (HC-SR04 tidak membaca)</div>
+        </div>
+        <div class="wtr-panel wtr-balance">
+          <div class="wtr-section-title" style="margin-bottom:2px">⚖️ Tank Balance</div>
+          <div class="wtr-balance-state" data-bind-class="balanceState"><span class="ic" data-bind="balanceIcon">⚖️</span><span data-bind="balanceText">--</span></div>
+          <div class="wtr-balance-bar"><div class="center"></div><div class="fill" data-bind-style="balanceFill" style="width:0%"></div></div>
+          <div class="wtr-balance-note" data-bind="balanceNote">Selisih level T1 vs T2.</div>
+          <div class="wtr-stat-row" style="margin-top:4px"><div class="wtr-stat-label">GWT Total</div><div class="wtr-stat-val" data-bind="gwtTotal">--</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="wtr-section" data-tabs="water" data-rain-section>
+      <div class="wtr-section-hdr"><div class="wtr-section-title">🌧️ Rain Water Collection</div></div>
+      <div class="wtr-3col">
+        <div class="wtr-tank-card" data-rw-tank><div class="wtr-rain-fx"></div>
+          <div class="cap"><span class="led"></span><span data-bind="rwName">Rain Water Tank</span><span class="wtr-trend" data-trend="rw"></span></div>
+          <div class="wtr-tank-readout"><div class="wtr-tank-pct"><span data-bind="rwPct">--</span><span class="u">%</span></div></div>
+          <svg class="wtr-tank-svg" viewBox="0 0 120 200" data-rw-svg></svg>
+          <div class="wtr-tank-meta">
+            <div class="m"><div class="v" data-bind="rwVol">--</div><div class="l">volume</div></div>
+            <div class="m"><div class="v" data-bind="rwDist">--</div><div class="l">dist cm</div></div>
+            <div class="m"><div class="v" data-bind="rwCap">--</div><div class="l">capacity</div></div>
+          </div>
+          <div class="wtr-tank-err">⚠ SENSOR ERROR (HC-SR04 tidak membaca)</div>
+        </div>
+        <div class="wtr-kpi-card rain">
+          <div class="kp"><div>
+            <div class="wtr-kpi-label">🚿 Rain Flow (1")</div>
+            <div class="wtr-kpi-value"><span data-bind="rwFlow">--</span><span class="wtr-kpi-unit">L/min</span></div>
+            <div class="wtr-kpi-foot"><span data-bind="rwFlowTag" class="wtr-tag neutral">--</span></div></div>
+            <div class="arc" data-arc="rw"></div></div>
+          <span data-bind="rwFlowScaleMax" style="display:none">30</span>
+        </div>
+        <div class="wtr-kpi-card gold">
+          <div>
+            <div class="wtr-kpi-label">📊 Rain Totalizer</div>
+            <div class="wtr-kpi-value" style="font-size:28px"><span data-bind="rwTotMain">--</span><span class="wtr-kpi-unit" data-bind="rwTotUnit">m³</span></div>
+          </div>
+          <div class="wtr-kpi-foot">Cumulative since boot · <b data-bind="rwTotLiters">-- L</b><br>Tank: <b data-bind="rwTankTag">--</b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="wtr-section" data-tabs="water" data-transfer-section>
+      <div class="wtr-section-hdr"><div class="wtr-section-title">🔄 Transfer Pump</div></div>
+      <div class="wtr-3col">
+        <div class="wtr-kpi-card violet">
+          <div class="kp"><div>
+            <div class="wtr-kpi-label">🚿 Flow Rate</div>
+            <div class="wtr-kpi-value"><span data-bind="flowLpm">--</span><span class="wtr-kpi-unit">L/min</span></div>
+            <div class="wtr-kpi-foot"><span data-bind="flowTag" class="wtr-tag neutral">--</span></div></div>
+            <div class="arc" data-arc="flow"></div></div>
+          <span data-bind="flowScaleMax" style="display:none">40</span>
+        </div>
+        <div class="wtr-kpi-card">
+          <div>
+            <div class="wtr-kpi-label">⚙️ Pump State</div>
+            <div class="wtr-kpi-value" style="font-size:24px"><span data-bind="pumpState">--</span></div>
+          </div>
+          <div class="wtr-pump-card" data-transfer-pump style="margin-top:6px;padding:10px 12px">
+            <div class="wtr-pump-l"><div class="wtr-pump-led"></div><div><div class="wtr-pump-name" data-bind="transferName">Transfer Pump</div><div class="wtr-pump-sub"><span data-bind="pulsesWin">--</span> pulses/win</div></div></div>
+            <div class="wtr-pump-r"><div class="s" data-bind="transferUptime">--</div><div class="l">uptime</div></div>
+          </div>
+        </div>
+        <div class="wtr-kpi-card gold">
+          <div>
+            <div class="wtr-kpi-label">📊 Totalizer</div>
+            <div class="wtr-kpi-value" style="font-size:28px"><span data-bind="totalizerMain">--</span><span class="wtr-kpi-unit" data-bind="totalizerUnit">m³</span></div>
+          </div>
+          <div class="wtr-kpi-foot">Cumulative since boot · <b data-bind="totalizerLiters">-- L</b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="wtr-section" data-tabs="water" data-roof-section>
+      <div class="wtr-section-hdr"><div class="wtr-section-title">🏠 Roof Tank + Booster</div></div>
+      <div class="wtr-2col">
+        <div class="wtr-tank-card" data-roof-tank>
+          <div class="cap"><span class="led"></span><span data-bind="roofName">Roof Tank</span><span class="wtr-trend" data-trend="roof"></span></div>
+          <div class="wtr-tank-readout" style="bottom:118px"><div class="wtr-tank-pct"><span data-bind="roofPct">--</span><span class="u">%</span></div></div>
+          <svg class="wtr-tank-svg" style="max-width:260px" viewBox="0 0 280 200" data-roof-svg></svg>
+          <div class="wtr-tank-meta">
+            <div class="m"><div class="v" data-bind="roofVol">--</div><div class="l">volume</div></div>
+            <div class="m"><div class="v" data-bind="roofDist">--</div><div class="l">dist cm</div></div>
+            <div class="m"><div class="v"><span data-bind="roofCap">--</span></div><div class="l">capacity</div></div>
+          </div>
+          <div class="wtr-tank-err">⚠ SENSOR ERROR (ultrasonik tidak membaca)</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div class="wtr-kpi-card cyan" data-roof-pressure-card>
+            <div class="kp"><div>
+              <div class="wtr-kpi-label">💨 Pressure</div>
+              <div class="wtr-kpi-value"><span data-bind="pressMain">--</span><span class="wtr-kpi-unit">bar</span></div>
+              <div class="wtr-kpi-foot"><span data-bind="pressTag" class="wtr-tag success">NORMAL</span></div></div>
+              <div class="arc" data-arc="press"></div></div>
+            <span data-bind="pressScaleMax" style="display:none">5</span>
+          </div>
+          <div class="wtr-pump-grid" style="margin-top:0">
+            <div class="wtr-pump-card" data-roof-pump="1">
+              <div class="wtr-pump-l"><div class="wtr-pump-led"></div><div><div class="wtr-pump-name" data-bind="p1Name">Booster 1</div><div class="wtr-pump-sub"><span data-bind="p1State">OFF</span> · <span data-bind="p1Cycles">0</span> cyc</div></div></div>
+              <div class="wtr-pump-r"><div class="s" data-bind="p1Runtime">0s</div><div class="l">runtime</div></div>
+            </div>
+            <div class="wtr-pump-card" data-roof-pump="2">
+              <div class="wtr-pump-l"><div class="wtr-pump-led"></div><div><div class="wtr-pump-name" data-bind="p2Name">Booster 2</div><div class="wtr-pump-sub"><span data-bind="p2State">OFF</span> · <span data-bind="p2Cycles">0</span> cyc</div></div></div>
+              <div class="wtr-pump-r"><div class="s" data-bind="p2Runtime">0s</div><div class="l">runtime</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= IRRIGATION ================= -->
+    <div class="wtr-section" data-tabs="irrigation" data-irrig-section>
+      <div class="wtr-sys-strip" style="margin-top:0;margin-bottom:12px">
+        <div class="wtr-sys-card"><div class="wtr-sys-label">💦 Watering Now</div><div class="wtr-sys-value"><span data-bind="irrNow">--</span></div><div class="wtr-sys-foot" data-bind="irrNowFoot">zona aktif</div></div>
+        <div class="wtr-sys-card"><div class="wtr-sys-label">🌿 Avg Moisture</div><div class="wtr-sys-value"><span data-bind="irrAvg">--</span><span class="u">%</span></div><div class="wtr-sys-foot" data-bind="irrAvgFoot">semua zona</div></div>
+        <div class="wtr-sys-card"><div class="wtr-sys-label">🚰 Water Used (range)</div><div class="wtr-sys-value"><span data-bind="irrWater">--</span></div><div class="wtr-sys-foot" data-bind="irrWaterFoot">estimasi</div></div>
+        <div class="wtr-sys-card"><div class="wtr-sys-label">🔌 Water Source</div><div class="wtr-sys-value" style="font-size:18px"><span data-bind="irrSource">--</span></div><div class="wtr-sys-foot" data-bind="irrSourceFoot">saran sumber</div></div>
+      </div>
+      <div class="card" style="margin-bottom:14px"><div class="card-t">🌿 Garden Map <span class="hint">hijau = optimal · cokelat = kering · biru = basah</span></div><div data-garden="full"></div></div>
+      <div class="wtr-3col" data-irrig-zones></div>
+    </div>
+
+    <!-- ================= ANALYTICS ================= -->
+    <div class="wtr-section" data-tabs="analytics events">
+      <div class="wtr-section-hdr" style="margin-bottom:6px"><div class="wtr-section-title">📅 Time Range</div></div>
+      <div class="wtr-panel">
+        <div class="wtr-presets" data-presets>
+          <button class="wtr-preset" data-preset="6h">6h</button>
+          <button class="wtr-preset active" data-preset="24h">24h</button>
+          <button class="wtr-preset" data-preset="7d">7d</button>
+          <button class="wtr-preset" data-preset="30d">30d</button>
+          <button class="wtr-preset" data-preset="custom">Custom</button>
+        </div>
+        <div class="wtr-date-inputs">
+          <div class="wtr-date-input"><label>From</label><input type="datetime-local" data-from></div>
+          <div class="wtr-date-input"><label>To</label><input type="datetime-local" data-to></div>
+        </div>
+        <div class="wtr-stat-row" style="margin-top:8px"><div class="wtr-stat-label">Samples</div><div class="wtr-stat-val" data-bind="rangeSamples">--</div></div>
+        <div class="wtr-stat-row"><div class="wtr-stat-label">GWT min/avg/max</div><div class="wtr-stat-val" data-bind="rangeGwt">--</div></div>
+        <div class="wtr-stat-row"><div class="wtr-stat-label">Roof min/avg/max</div><div class="wtr-stat-val" data-bind="rangeRoof">--</div></div>
+        <div class="wtr-stat-row"><div class="wtr-stat-label">Rain tank min/avg/max</div><div class="wtr-stat-val" data-bind="rangeRain">--</div></div>
+        <div class="wtr-stat-row"><div class="wtr-stat-label">Flow min/avg/max</div><div class="wtr-stat-val" data-bind="rangeFlow">--</div></div>
+        <div class="wtr-stat-row"><div class="wtr-stat-label">Water transferred (range)</div><div class="wtr-stat-val" data-bind="rangeTransferred">--</div></div>
+        <div class="wtr-stat-row"><div class="wtr-stat-label">Rain collected (range)</div><div class="wtr-stat-val" data-bind="rangeRainCollected">--</div></div>
+      </div>
+    </div>
+
+    <div class="wtr-section" data-tabs="analytics water">
+      <div class="wtr-section-hdr">
+        <div class="wtr-section-title">📈 Levels & Flow Trend</div>
+        <div class="wtr-chart-legend">
+          <div class="item"><span class="dot" style="background:#38bdf8"></span>GWT T1</div>
+          <div class="item"><span class="dot" style="background:#0ea5e9"></span>GWT T2</div>
+          <div class="item"><span class="dot" style="background:#06b6d4"></span>Roof</div>
+          <div class="item"><span class="dot" style="background:#2dd4bf"></span>Rain tank</div>
+          <div class="item"><span class="dot" style="background:#a78bfa"></span>Transfer L/min</div>
+          <div class="item"><span class="dot" style="background:#f472b6"></span>Rain L/min</div>
+          <div class="item"><span class="dot" style="background:rgba(167,139,250,0.4)"></span>Pump ON</div>
+        </div>
+      </div>
+      <div class="wtr-chartbox"><svg class="wtr-chart-svg" data-chart preserveAspectRatio="none" viewBox="0 0 1000 280" style="display:none"></svg><div class="wtr-xline" data-xline="main"></div><div class="wtr-tip" data-tip="main"></div></div>
+      <div class="wtr-chart-empty" data-chart-empty>Belum ada cukup data. Set Time Window widget ke 24 jam atau lebih.</div>
+    </div>
+
+    <div class="wtr-section" data-tabs="analytics irrigation" data-irrig-chart-section>
+      <div class="wtr-section-hdr">
+        <div class="wtr-section-title">🌱 Soil Moisture & Valve Trend</div>
+        <div class="wtr-chart-legend" data-irrig-legend></div>
+      </div>
+      <div class="wtr-chartbox"><svg class="wtr-chart-svg irr" data-chart-irr preserveAspectRatio="none" viewBox="0 0 1000 300" style="display:none"></svg><div class="wtr-xline" data-xline="irr"></div><div class="wtr-tip" data-tip="irr"></div></div>
+      <div class="wtr-chart-empty" data-chart-irr-empty>Belum ada data irigasi. Pastikan device Garden dikirim z*_soil1 / z*_soil2 / z*_valve.</div>
+    </div>
+
+    <!-- ================= EVENTS ================= -->
+    <div class="wtr-section" data-tabs="events water irrigation overview">
+      <div class="wtr-section-hdr"><div class="wtr-section-title">🚨 System Events <span data-bind="eventCount" style="color:var(--text-3);font-weight:500">[0]</span></div></div>
+      <div class="card"><div data-event-list><div class="wtr-event-empty">No events in selected range.</div></div></div>
+    </div>
+
+    <div class="wtr-export" data-tabs="analytics events">
+      <button class="wtr-export-btn" data-action="csv">📥 CSV</button>
+      <button class="wtr-export-btn" data-action="print">🖨️ Print</button>
+    </div>
+  </main>
+</div>
+<div class="wtr-toast-wrap" data-toast-wrap></div>
+</div>
