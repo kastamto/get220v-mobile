@@ -9,6 +9,10 @@
 #include <string.h>
 #include <vector>
 typedef uint8_t byte;
+// Konstanta pin bawaan board ESP32 (pins_arduino.h) — agar bentrok nama tertangkap di host
+static const uint8_t T0=4,T1=0,T2=2,T3=15,T4=13,T5=12,T6=14,T7=27,T8=33,T9=32;
+static const uint8_t TX=1,RX=3,SDA=21,SCL=22,SS=5,MOSI=23,MISO=19,SCK=18,DAC1=25,DAC2=26,A0=36,A3=39,A4=32,A5=33,A6=34,A7=35;
+#define LED_BUILTIN 2
 #define IRAM_ATTR
 #define HIGH 1
 #define LOW 0

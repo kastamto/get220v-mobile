@@ -10,7 +10,7 @@
 #define TB_HOST         "thingsboard.example.com"
 #define TB_PORT         1883
 #define TB_TOKEN        "DEVICE_ACCESS_TOKEN"      // access token device "nismara gwt"
-#define FW_VERSION      "gwt-1.1"
+#define FW_VERSION      "gwt-1.2"
 
 /* ---------------- PIN MAP (ESP32 DevKit 30/38 pin) ----------------
  *   Fungsi            GPIO   Catatan

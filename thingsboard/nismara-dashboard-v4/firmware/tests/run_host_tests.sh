@@ -4,6 +4,10 @@
 set -e
 HERE="$(cd "$(dirname "$0")" && pwd)"; FW="$HERE/.."; TMP="$(mktemp -d)"
 [ -f "$HERE/stubs/ArduinoJson.h" ] || curl -sSL -o "$HERE/stubs/ArduinoJson.h" https://github.com/bblanchon/ArduinoJson/releases/download/v7.2.0/ArduinoJson-v7.2.0.h
+echo "=== aturan Arduino IDE (lint + prototipe otomatis) ==="
+python3 -I "$HERE/lint_arduino_sketch.py" "$FW/nismara_gwt/nismara_gwt.ino" "$FW/nismara_irrigation/nismara_irrigation.ino"
+python3 -I "$HERE/proto_check.py" "$FW/nismara_gwt/nismara_gwt.ino" "$HERE/stubs" "$FW/nismara_gwt"
+python3 -I "$HERE/proto_check.py" "$FW/nismara_irrigation/nismara_irrigation.ino" "$HERE/stubs" "$FW/nismara_irrigation"
 cp "$FW/nismara_irrigation/nismara_irrigation.ino" "$TMP/nismara_irrigation.cpp"
 for P in LT1 ROOF; do
   mkdir -p "$TMP/$P"

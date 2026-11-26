@@ -91,7 +91,7 @@ void openValve(int i) {
   relayWrite(i, true); publishNow = true;
   Serial.printf("[Z%d] valve OPEN\n", i + 1);
 }
-void closeValve(int i, uint8_t faultCode = 0) {
+void closeValveF(int i, uint8_t faultCode) {   // faultCode 0 = normal (tanpa default argument: aman utk prototipe otomatis Arduino IDE)
   if (!Z[i].valve) { if (faultCode) Z[i].fault = faultCode; return; }
   Z[i].runtimeS += (millis() - Z[i].onSince) / 1000;
   Z[i].valve = false; Z[i].offSince = millis(); Z[i].manualRun = false;
@@ -99,6 +99,7 @@ void closeValve(int i, uint8_t faultCode = 0) {
   relayWrite(i, false); publishNow = true;
   Serial.printf("[Z%d] valve CLOSE (fault=%u)\n", i + 1, faultCode);
 }
+void closeValve(int i) { closeValveF(i, 0); }
 void manualOpen(int i, uint32_t minutes) {
   minutes = constrain(minutes, 1UL, MAX_MANUAL_MIN);
   if (activeCount() >= MAX_CONCURRENT && !Z[i].valve)
@@ -158,7 +159,7 @@ void controlLoop() {
   uint32_t now = millis(); bool win = inWindow();
   for (int i = 0; i < NZONES; i++) {
     Zone& z = Z[i];
-    if (z.valve && !z.avgOk && !z.manualRun) closeValve(i, 1);      // fail-safe: buta => tutup
+    if (z.valve && !z.avgOk && !z.manualRun) closeValveF(i, 1);      // fail-safe: buta => tutup
     if (!z.avgOk && z.fault == 0) { z.fault = 1; publishNow = true; }
     if (z.avgOk && z.fault == 1)  { z.fault = 0; publishNow = true; }
 
@@ -170,7 +171,7 @@ void controlLoop() {
         if (z.avgOk && z.avg < z.startPct && cooled && win && activeCount() < MAX_CONCURRENT) openValve(i);
       } else if (z.avgOk && z.avg >= z.stopPct) closeValve(i);
     }
-    if (z.valve && !z.manualRun && (now - z.onSince) >= MAX_RUN_S * 1000UL) closeValve(i, 2);
+    if (z.valve && !z.manualRun && (now - z.onSince) >= MAX_RUN_S * 1000UL) closeValveF(i, 2);
   }
 }
 

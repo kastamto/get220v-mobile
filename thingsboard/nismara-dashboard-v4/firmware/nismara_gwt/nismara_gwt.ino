@@ -20,10 +20,13 @@
 #include <esp_task_wdt.h>
 #include "config.h"
 
+// CATATAN: semua tipe harus didefinisikan di sini, SEBELUM fungsi pertama (aturan prototipe otomatis Arduino IDE).
 struct TankCfg { uint8_t trig, echo; float emptyCm, fullCm, capacityL; };
-const TankCfg T1 = {PIN_T1_TRIG, PIN_T1_ECHO, T1_EMPTY_CM, T1_FULL_CM, T1_CAP_L};
-const TankCfg T2 = {PIN_T2_TRIG, PIN_T2_ECHO, T2_EMPTY_CM, T2_FULL_CM, T2_CAP_L};
-const TankCfg RW = {PIN_RW_TRIG, PIN_RW_ECHO, RW_EMPTY_CM, RW_FULL_CM, RW_CAP_L};
+struct Reading { float dist, level, vol; bool ok; };
+// Jangan memakai nama T1/T2: bentrok dengan konstanta pin touch bawaan board ESP32 (pins_arduino.h).
+const TankCfg TANK_T1 = {PIN_T1_TRIG, PIN_T1_ECHO, T1_EMPTY_CM, T1_FULL_CM, T1_CAP_L};
+const TankCfg TANK_T2 = {PIN_T2_TRIG, PIN_T2_ECHO, T2_EMPTY_CM, T2_FULL_CM, T2_CAP_L};
+const TankCfg TANK_RW = {PIN_RW_TRIG, PIN_RW_ECHO, RW_EMPTY_CM, RW_FULL_CM, RW_CAP_L};
 
 WiFiClient   wifi;
 PubSubClient mqtt(wifi);
@@ -33,7 +36,6 @@ Preferences  prefs;
 volatile uint32_t flowPulses = 0;
 void IRAM_ATTR onFlowPulse() { flowPulses++; }
 
-struct Reading { float dist, level, vol; bool ok; };
 Reading r1, r2, rw;
 float flowLpm = 0, totalL = 0, savedTotalL = 0;
 uint32_t pulsesWin = 0;
@@ -177,7 +179,7 @@ void setup() {
   Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);
   lcd.init(); lcd.backlight(); lcdLine(0, "NISMARA GWT"); lcdLine(1, FW_VERSION); lcdLine(2, "LCD 20x4 I2C"); lcdLine(3, "booting...");
 
-  const TankCfg* ts[] = {&T1, &T2, &RW};
+  const TankCfg* ts[] = {&TANK_T1, &TANK_T2, &TANK_RW};
   for (auto t : ts) { pinMode(t->trig, OUTPUT); pinMode(t->echo, INPUT); }
   pinMode(PIN_FLOW, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(PIN_FLOW), onFlowPulse, FALLING);
@@ -197,7 +199,7 @@ void loop() {
   uint32_t now = millis();
   if (now - lastSampleMs >= SAMPLE_MS) {
     lastSampleMs = now;
-    r1 = readTank(T1); r2 = readTank(T2); rw = readTank(RW);
+    r1 = readTank(TANK_T1); r2 = readTank(TANK_T2); rw = readTank(TANK_RW);
     drawLcd();
     Serial.printf("T1 %.1f/%.1f T2 %.1f/%.1f RW %.1f/%.1f flow %.2f tot %.1f\n", r1.dist, r1.level, r2.dist, r2.level, rw.dist, rw.level, flowLpm, totalL);
   }

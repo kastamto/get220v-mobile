@@ -57,8 +57,15 @@ di Lt.1 hanya satu valve aktif sekaligus (zona lain otomatis ditutup), dan perin
 **Widget Switch control** (satu per zona): *Target device* = device irigasi, *RPC set value method* = `setValve1`,
 *RPC get value method* = `getValve1`, *Value type* = Boolean. Zona 2 → `setValve2` / `getValve2`.
 
+## 3b. Peringatan saat compile (normal) & error umum
+- `WARNING: library LiquidCrystal_I2C claims to run on all architecture(s)...` → **aman diabaikan** (metadata library, bukan error).
+- `conflicting declaration 'const TankCfg T1'` / `'Reading' does not name a type` → sudah diperbaiki (v1.2 GWT): nama `T1/T2` bentrok dengan
+  konstanta pin touch bawaan board ESP32, dan tipe harus didefinisikan sebelum fungsi pertama (aturan prototipe otomatis Arduino IDE).
+  Jika Anda menambah kode: **jangan** memakai nama `T0–T9, A0–A19, SDA, SCL, SS, MOSI, MISO, SCK, TX, RX`, definisikan `struct` di atas
+  fungsi pertama, dan jangan pakai default argument pada fungsi di `.ino`. `tests/run_host_tests.sh` memeriksa aturan ini otomatis.
+
 ## 4. Uji tanpa hardware
 ```bash
-bash firmware/tests/run_host_tests.sh   # menjalankan sketch asli dengan stub; memeriksa RPC, relay, batas waktu (profil Lt.1 & Roof)
+bash firmware/tests/run_host_tests.sh   # aturan Arduino IDE (prototipe otomatis, bentrok nama) + RPC, relay, batas waktu, LCD (Lt.1, Roof, GWT)
 ```
 Ini menguji logika, bukan wiring/ADC/MQTT sungguhan — tetap uji di board.
